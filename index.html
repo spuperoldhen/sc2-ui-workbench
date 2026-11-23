@@ -1917,6 +1917,7 @@ const canvasImageDirectory = "Assets\\Textures\\SC2WorkbenchImports\\";
 const canvasImageFormats = {png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",webp:"image/webp",
   gif:"image/gif",bmp:"image/bmp",avif:"image/avif",dds:"image/vnd-ms.dds",tga:"image/x-tga"};
 const maxCanvasImageData = 16 * 1024 * 1024;
+const maxBindingLength = 256;
 const defaultRenderPriority = 512;
 const MAX_SIZE = 8192;
 const MAX_OFFSET = 16384;
@@ -2790,11 +2791,11 @@ function readProject(data) {
   if (!oldDefault) model.screen = {w:number(data.screen.w,320,MAX_SIZE,2133),h:number(data.screen.h,240,MAX_SIZE,1200)};
   model.root = {...model.root,...geometry(data.root,model.root),name:string(data.root.name,80,"对话框"),
     background:data.root.background === true,modal:data.root.modal === true,path:assetPath(data.root.path),
-    binding:string(data.root.binding,96),...(typeof data.root.guiBindingEnabled === "boolean" ? {guiBindingEnabled:data.root.guiBindingEnabled} : {}),
+    binding:string(data.root.binding,maxBindingLength),...(typeof data.root.guiBindingEnabled === "boolean" ? {guiBindingEnabled:data.root.guiBindingEnabled} : {}),
     visible:data.root.visible !== false,full:data.root.full === true,
     opacity:number(data.root.opacity,0,100,100),priority:number(data.root.priority,0,1023,defaultRenderPriority),
     audience:Object.hasOwn(audiences,data.root.audience) ? data.root.audience : "all",
-    player:number(data.root.player,1,15,1),groupVar:string(data.root.groupVar,96),
+    player:number(data.root.player,1,15,1),groupVar:string(data.root.groupVar,maxBindingLength),
     perPlayer:data.root.perPlayer === true,playerLimit:number(data.root.playerLimit,1,maxPlayerSlot,defaultInstancePlayerLimit),
     relativeDialog:data.root.relativeDialog ?? 0,attachAnchor:anchorMap.has(data.root.attachAnchor) ? data.root.attachAnchor : "Bottom",
     variants:cleanVariants(data.root.variants,null),handoff:cleanHandoff(data.root.handoff)};
@@ -2808,7 +2809,7 @@ function readProject(data) {
       hover:assetPath(source.hover),imageMode:Object.hasOwn(imageModes,source.imageMode) ? source.imageMode : node.imageMode,
       text:string(source.text,maxControlText,node.text),style:string(source.style,100),richText:source.richText !== false,color:formatColor(source.color),
       enabled:source.enabled !== false,visible:source.visible !== false,demo:source.demo === true,
-      binding:string(source.binding,96),...(typeof source.guiBindingEnabled === "boolean" ? {guiBindingEnabled:source.guiBindingEnabled} : {}),
+      binding:string(source.binding,maxBindingLength),...(typeof source.guiBindingEnabled === "boolean" ? {guiBindingEnabled:source.guiBindingEnabled} : {}),
       ...(source.locked===true ? {locked:true} : {}),handoff:cleanHandoff(source.handoff),template:string(source.template,300),full:source.full === true,
       tooltip:string(source.tooltip,800),tooltipKey:string(source.tooltipKey,200),textKey:string(source.textKey,200),
       tint:formatColor(source.tint),opacity:number(source.opacity,0,100,100),
@@ -3147,23 +3148,23 @@ function buildComponent(name,ids) {
 }
 function arrayAllocations(source = workspace) {
   const used=new Map();
-  const keyFor=({name,indexes})=>name+"["+indexes.slice(0,-1).join("][")+"]/"+indexes.length;
+  const keyFor=(binding)=>binding.ref.replace(/\[\d+\]$/,"");
   for (const {layout} of source.dialogs) {
     for (const node of [layout.root,...layout.nodes]) {
       const ref=parseBinding(guiBindingValue(node));
-      if (!ref?.indexes.length) continue;
+      if (!(ref?.segments?.at(-1).indexes || ref?.indexes)?.length) continue;
       const key=keyFor(ref);
       used.set(key,Math.max(used.get(key) ?? -1,ref.indexes.at(-1)));
     }
   }
   return (binding)=>{
     const ref=parseBinding(binding);
-    if (!ref?.indexes.length) return "";
+    if (!(ref?.segments?.at(-1).indexes || ref?.indexes)?.length) return "";
     const key=keyFor(ref);
     const slot=(used.get(key) ?? -1)+1;
     if (slot>maxArrayIndex) throw new Error(ref.name+" 的下一索引超过 "+maxArrayIndex+"。");
     used.set(key,slot);
-    return ref.name+[...ref.indexes.slice(0,-1),slot].map((index)=>"["+index+"]").join("");
+    return key+"["+slot+"]";
   };
 }
 function reservedNodeIds(dialogId=activeDialog) {
@@ -3686,7 +3687,7 @@ async function scanComponentFolder(files) {
   return folder;
 }
 async function loadComponentScript(folder,entry) {
-  const merged={sections:[],free:{name:"脚本片段",statements:[],skipped:[],bodyStart:-1}};
+  const merged={sections:[],free:{name:"脚本片段",statements:[],skipped:[],bodyStart:-1},globalNames:new Set()};
   const seen=new Set();
   const imports=[];
   let total=0;
@@ -3701,6 +3702,7 @@ async function loadComponentScript(folder,entry) {
     total+=source.file.size;
     const {text}=await readComponentText(source);
     const result=scanUiGalaxy(text);
+    for (const name of result.globalNames) merged.globalNames.add(name);
     const masked=text.replace(/"(?:\\[\s\S]|[^"\\])*"|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*/g,
       (part)=>part.startsWith("/")?part.replace(/[^\r\n]/g," "):part);
     const directory=source.path.split("/").slice(0,-1).join("/");
@@ -4002,7 +4004,8 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
       guiBindingEnabled:hasGuiBinding(node),visible:node.visible,
       ...(node.id ? {parentId:node.parent} : {}),
       ...(binding ? {binding:{reference:layout.root.perPlayer ? playerBindingReference(binding,"player") : binding.ref,
-        galaxyName:binding.name,indexes:binding.indexes,...(layout.root.perPlayer ? {playerIndexed:true} : {})}} : {}),
+        galaxyName:binding.name,indexes:binding.indexes,...(binding.segments ? {memberPath:binding.segments} : {}),
+        ...(layout.root.perPlayer ? {playerIndexed:true} : {})}} : {}),
       ...(node.variants?.length ? {overrideAudiences:node.variants.map(scopeFor)} : {}),
       ...(intent ? {intent} : {})};
   };
@@ -4036,9 +4039,10 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
       audience:scopeFor(layout.root),dialog:controlInfo(layout.root,layout),
       controls:layout.nodes.map((node)=>controlInfo(node,layout))
     })),
-    variables:guiGlobals(plan.exported.plan,plan.exported.vote).map(({name,type,max,playerIndexed})=>({
+    variables:guiGlobals(plan.exported.plan,plan.exported.vote).map(({name,type,max,playerIndexed,segmentDimensions})=>({
       galaxyName:name,guiIdentifier:guiVariableName(name),guiType:type,
-      maximumIndexes:max,minimumArrayLengths:max.map((index)=>index+1),...(playerIndexed ? {playerIndexed:true} : {})
+      maximumIndexes:max,minimumArrayLengths:max.map((index)=>index+1),...(playerIndexed ? {playerIndexed:true} : {}),
+      ...(segmentDimensions ? {storage:"structMember",segmentDimensions} : {})
     })),
     resources:resources.map(encodeResource),
     files:plan.rows.map(({path,kind})=>({mapPath:path,archivePath:returnFilesDirectory+"/"+path,type:fileTypes[kind] || kind})),
@@ -4047,8 +4051,9 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
   };
 }
 function mapReturnInstructions(plan) {
-  const gui=guiGlobals(plan.exported.plan,plan.exported.vote)
-    .map(({name,type,max})=>name+"  "+type+(max.length?"  索引 "+max.map((n)=>"0–"+n).join(" × "):""));
+  const variables=guiGlobals(plan.exported.plan,plan.exported.vote);
+  const gui=variables
+    .map((entry)=>entry.name+"  "+entry.type+(entry.max.length?"  索引 "+variableIndexRanges(entry," × "):""));
   const phases=plan.metadata?.functions || [];
   const list=plan.rows.map(({path,kind})=>path+"  "+kind);
   return [
@@ -4058,7 +4063,8 @@ function mapReturnInstructions(plan) {
     "先读 "+agentManifestFile+"。用对话框 id 和控件 id 定位对象，按 intent 的用途、事件和玩家范围接入 GUI。",
     "resources 中的 iconBrowserThumbnail 表示素材只有浏览器预览。先查地图和游戏依赖，缺失时用原始 DDS 补齐。",
     "variables 是 GUI 所需变量清单。未启用绑定时沿用生成的脚本句柄。若 intent 需要运行时引用，在脚本内接入；仅在作者启用绑定时创建对应的 GUI 句柄变量。",
-    plan.exported.hasPlayerInstances ? "instanceMode 为 perPlayer 时，使用触发玩家编号访问句柄首维（例：[EventPlayer()]），界面更新的目标范围也使用该玩家的单人组。初始化已遍历玩家组一次，整段直接执行。" : "",
+    variables.some((entry)=>entry.segmentDimensions) ? "storage 为 structMember 时，复用地图已有的结构体和成员声明，按 segmentDimensions 核对各层数组维数。galaxyName 是完整成员路径，不应创建同名的独立 GUI 全局变量。" : "",
+    plan.exported.hasPlayerInstances ? "instanceMode 为 perPlayer 时，使用触发玩家编号访问目标句柄数组的首维。对结构体成员使用末级成员的数组首维。界面更新使用该玩家的单人组。初始化已遍历玩家组一次，整段直接执行。" : "",
     "",
     "1. 备份原地图并关闭编辑器中的原地图。在地图副本中，把「地图文件」里的文件合并到相同路径。",
     plan.metadata ? "   如果地图已有外部改动，请在覆盖前对照并合并对应语言和字体样式文件。" :
@@ -4518,9 +4524,11 @@ function setLayoutPrefix(layout,prefix) {
   const replacement = "gv_"+prefix+"_";
   if (layout.recipe && prefix !== layout.prefix) {
     for (const node of [layout.root,...layout.nodes]) {
-      if (node.binding.startsWith(original)) node.binding = replacement+node.binding.slice(original.length);
+      if (node.binding.startsWith(original) && !parseBinding(node.binding)?.segments) node.binding = replacement+node.binding.slice(original.length);
     }
-    if (layout.root.groupVar.startsWith(original)) layout.root.groupVar = replacement+layout.root.groupVar.slice(original.length);
+    if (layout.root.groupVar.startsWith(original) && !parseBinding(layout.root.groupVar)?.segments) {
+      layout.root.groupVar = replacement+layout.root.groupVar.slice(original.length);
+    }
   }
   layout.prefix = prefix;
 }
@@ -6189,7 +6197,7 @@ function usesPlayerGroup(audience) {
 function cleanVariants(raw,node) {
   if (!Array.isArray(raw)) return [];
   return raw.slice(0,128).filter((row) => row && Object.hasOwn(overrideAudiences,row.audience)).map((row) => {
-    const result = {audience:row.audience,player:number(row.player,1,15,1),groupVar:string(row.groupVar,96).trim()};
+    const result = {audience:row.audience,player:number(row.player,1,15,1),groupVar:string(row.groupVar,maxBindingLength).trim()};
     for (const field of overrideFields(node)) {
       if (field === "visible" || field === "enabled" || field === "checked") {
         if (typeof row[field] === "boolean") result[field] = row[field];
@@ -6302,7 +6310,7 @@ function renderOverrides() {
     renderOverrides();
   }));
   const player = selectField("玩家编号","overridePlayer",playerSlots,String(saved.player),()=>{});
-  const group = textField("GUI 玩家组变量","overrideGroup",saved.groupVar,() => {},{max:96,placeholder:"gv_CardViewers"});
+  const group = textField("GUI 玩家组变量","overrideGroup",saved.groupVar,() => {},{max:maxBindingLength,placeholder:"gv_CardViewers"});
   const groupSuggestions = el("datalist");
   groupSuggestions.id = "overrideGroupSuggestions";
   for (const ref of groupReferences()) {
@@ -6931,7 +6939,7 @@ const fieldHelp = {
   "field-imageMode":"决定贴图如何拉伸或分块绘制。切换后可在画布中检查边角。",
   "field-style":"查看样式实样，也可以输入地图已有的样式 ID。",
   "field-text":`彩色文字用 <c val="00FF00">文字</c>，换行用 <n/>，字体样式用 <s val="样式 ID">文字</s>。`,
-  "field-binding":"填触发器中的 Galaxy 变量名。数组可以填指定位置，例如 gv_Choices[1]。"
+  "field-binding":"填写 Galaxy 变量或结构体成员，例如 gv_Choices[1] 或 gv_UI[2].Cards[1]。"
 };
 const modalHelp = "模态适用于必须先处理的弹窗，例如确认或必选选项。显示时它会优先接收输入，常驻信息面板通常关闭此选项。";
 function field(label,id,input,onChange) {
@@ -7225,13 +7233,13 @@ function renderInspector() {
     const clean = value.trim();
     update("binding",parseBinding(clean)?.ref || clean);
     return item.binding;
-  },{max:96,placeholder:isRoot ? "gv_MyDialog" : "gv_Buttons[1]"});
+  },{max:maxBindingLength,placeholder:isRoot ? "gv_MyDialog" : "gv_Buttons[1]"});
   const bindingHint = el("p","hint-row");
   const syncBindingFields = () => {
     binding.hidden = !hasGuiBinding(item);
     bindingHint.textContent = binding.hidden ? "由 Galaxy 脚本管理。需要接入地图逻辑时，可在下方填写 agent 说明。" :
-      model.root.perPlayer ? "玩家编号自动放在首维。例如填写 gv_Items[3]，导出为 gv_Items[玩家编号][3]。" :
-      "可使用建议名称，或填地图已有的同类型变量。";
+      model.root.perPlayer ? "玩家编号放在目标数组首维。结构体路径使用末级成员的数组。" :
+      "可填写地图已有变量或成员，例如 gv_UI.Hud.Buttons[2]。";
   };
   const bindingToggle = checkbox("启用 GUI 全局变量绑定",hasGuiBinding(item),(enabled) => {
     mutate(() => {
@@ -7307,7 +7315,7 @@ function renderInspector() {
     const player = numberField("玩家编号","field-player",item.player,1,15,(value) => update("player",value));
     const group = textField("玩家组全局变量 ID","field-groupVar",item.groupVar,(value) => {
       update("groupVar",value.trim()); return item.groupVar;
-    },{max:96,placeholder:"gv_ObserverGroup"});
+    },{max:maxBindingLength,placeholder:"gv_ObserverGroup"});
     const showAudience = () => {
       player.hidden = item.audience !== "single";
       group.hidden = item.audience !== "variable";
@@ -9596,20 +9604,28 @@ function galaxyString(value) {
 }
 const maxArrayIndex = 8191;
 const reservedGalaxy = new Set("include struct typedef native static const void bool int byte char fixed string text trigger playergroup true false null if else while do for break continue return switch case default".split(" "));
+const galaxyBindingSegment = String.raw`[A-Za-z_]\w*(?:\s*\[\s*(?:0[xX][\da-fA-F]+|\d+)\s*\])*`;
+const galaxyBindingPath = galaxyBindingSegment+String.raw`(?:\s*\.\s*`+galaxyBindingSegment+`)*`;
+const galaxyBindingPattern = new RegExp("^"+galaxyBindingPath+"$");
+function formatBindingSegments(segments) {
+  return segments.map(({name,indexes})=>name+indexes.map((index)=>"["+index+"]").join("")).join(".");
+}
 function inspectBinding(value) {
   const candidate = value.trim();
-  const match = /^([A-Za-z_][A-Za-z0-9_]*)([\s\S]*)$/.exec(candidate);
-  if (!match || reservedGalaxy.has(match[1])) return {error:"脚本标识符需要以英文字母或下划线开头，并避开 Galaxy 保留字。"};
-  const name = match[1], tail = match[2].trim();
-  if (tail && !/^(?:\[\s*[0-9]+\s*\]\s*)+$/.test(tail)) {
-    return {error:"数组用方括号填写非负整数，如 "+name+"[2][1]。"};
-  }
-  const indexes = Array.from(tail.matchAll(/\d+/g),([value]) => Number(value));
-  if (indexes.length > 4) return {error:"GUI 数组最多支持 4 维。"};
+  if (candidate.length>maxBindingLength) return {error:"Galaxy 变量路径超过 "+maxBindingLength+" 字符。"};
+  if (!galaxyBindingPattern.test(candidate)) return {error:"填写 Galaxy 变量或结构体成员路径，例如 gv_UI[2].Cards[1]。数组索引须为非负整数。"};
+  const segments=candidate.split(".").map((part)=>{
+    const name=part.trimStart().match(/^\w+/)[0];
+    return {name,indexes:Array.from(part.matchAll(/\[\s*(0[xX][\da-fA-F]+|\d+)\s*\]/g),([,index])=>Number(index))};
+  });
+  if (segments.some(({name})=>reservedGalaxy.has(name))) return {error:"变量与成员名称须避开 Galaxy 保留字。"};
+  const name=segments.map((part)=>part.name).join(".");
+  const indexes=segments.flatMap((part)=>part.indexes);
+  if (segments.some((part)=>part.indexes.length>4)) return {error:"每个变量或成员的数组最多支持 4 维。"};
   if (indexes.some((index) => !Number.isSafeInteger(index) || index > maxArrayIndex)) {
     return {error:"数组索引必须在 0–"+maxArrayIndex+" 之间。"};
   }
-  return {binding:{name,indexes,ref:name+indexes.map((index) => "["+index+"]").join("")}};
+  return {binding:{name,indexes,ref:formatBindingSegments(segments),...(segments.length>1 ? {segments} : {})}};
 }
 function parseBinding(value) {
   return inspectBinding(value).binding || null;
@@ -9624,7 +9640,11 @@ function suggestedGuiBinding(layout,node) {
   return "gv_"+galaxyHandle(/^[A-Za-z_][A-Za-z0-9_]{0,31}$/.test(layout.prefix) ? layout.prefix : "MapUI",node);
 }
 const playerLoopIndex = "PlayerGroupLoopCurrent()";
-function playerBindingReference({name,indexes},playerIndex) {
+function playerBindingReference({name,indexes,segments},playerIndex) {
+  if (segments) {
+    const leaf=segments.at(-1);
+    return formatBindingSegments([...segments.slice(0,-1),{name:leaf.name,indexes:[playerIndex,...leaf.indexes]}]);
+  }
   return name+"["+playerIndex+"]"+indexes.map((index)=>"["+index+"]").join("");
 }
 function galaxyHandle(prefix,node,playerIndex="") {
@@ -9647,12 +9667,15 @@ function bindingPlan(values = null,includeAudience = true,layout = model,registr
     const {binding,error} = inspectBinding(value);
     const issue = (message) => issues.push({level:"error",label,message,id:node?.id ?? 0,field});
     if (error) return issue(error);
-    const {name,indexes} = binding;
+    const {name,indexes,segments} = binding;
     const perPlayer = layout.root.perPlayer && type !== "玩家组";
-    if (perPlayer && indexes.length === 4) return issue("独立实例的首维用于玩家编号，其余最多可填 3 维索引。");
+    const leafIndexes=segments?.at(-1).indexes || indexes;
+    if (perPlayer && leafIndexes.length === 4) return issue("独立实例的首维用于玩家编号，目标数组其余最多可填 3 维索引。");
     const ref = perPlayer ? playerBindingReference(binding,playerLoopIndex) : binding.ref;
-    const max = perPlayer ? [layout.root.playerLimit,...indexes] : indexes;
-    if (generated.has(name)) return issue(name+" 与自动生成的 Galaxy 名称冲突。");
+    const dimensionParts=segments?.map(({indexes},i)=>perPlayer && i===segments.length-1 ? [layout.root.playerLimit,...indexes] : indexes);
+    const max = dimensionParts ? dimensionParts.flat() : perPlayer ? [layout.root.playerLimit,...indexes] : indexes;
+    const segmentDimensions=dimensionParts?.map((part)=>part.length);
+    if (generated.has(segments?.[0].name || name)) return issue(name+" 与自动生成的 Galaxy 名称冲突。");
     const prev = reference.get(ref);
     if (prev && (type !== "玩家组" || prev.type !== type)) {
       const shown = perPlayer ? playerBindingReference(binding,"玩家编号") : ref;
@@ -9667,9 +9690,12 @@ function bindingPlan(values = null,includeAudience = true,layout = model,registr
       return issue(name+" 在「"+origins.get(name)+"」中是 "+description(existing.type,existing.max.length)+
         "，而此处是 "+description(type,max.length)+"。");
     }
+    if (existing && JSON.stringify(existing.segmentDimensions)!==JSON.stringify(segmentDimensions)) {
+      return issue(name+" 的数组索引位于不同成员层级，请核对结构体声明。");
+    }
     if (existing) existing.max = existing.max.map((maximum,index) => Math.max(maximum,max[index]));
     else {
-      globals.set(name,{name,type,max,...(perPlayer ? {playerIndexed:true} : {})});
+      globals.set(name,{name,type,max,...(segmentDimensions ? {segmentDimensions} : {}),...(perPlayer ? {playerIndexed:true} : {})});
       origins.set(name,label);
     }
     reference.set(ref,{label,type});
@@ -9701,69 +9727,99 @@ const mapStorageTypes = {"对话框":["int","dialog"],"对话框项":["int","con
 function scanMapDeclarations(source) {
   const protectedText = /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'/g;
   const clean = source.replace(protectedText,(value) => value.replace(/[^\r\n]/g," "));
-  const declarations = new Map();
-  let start = 0, depth = 0, parentheses = 0;
-  for (let i=0; i<clean.length; i++) {
-    const token = clean[i];
-    if (token === "(") parentheses++;
-    else if (token === ")") parentheses = Math.max(0,parentheses-1);
-    else if (token === "{" && !parentheses) depth++;
-    else if (token === "}" && !parentheses) {
-      depth = Math.max(0,depth-1);
-      if (!depth) start = i+1;
-    } else if (token === ";" && !depth && !parentheses) {
-      const statement = clean.slice(start,i).replace(/^\s*(?:#?include\b[^\r\n]*(?:\r?\n|\r))+\s*/,"").trim();
-      start = i+1;
-      const match = statement.match(/^((?:(?:static|const)\s+)*)([A-Za-z_]\w*)(?=\s|\[)\s*((?:\[[^\[\]]*\]\s*)*)([A-Za-z_]\w*)\s*((?:\[[^\[\]]*\]\s*)*)(?:=[\s\S]*)?$/);
-      if (!match) continue;
-      const [,,type,before,name,after] = match;
-      const dimensions = Array.from((before+after).matchAll(/\[([^\[\]]*)\]/g),([,raw]) => {
-        const value = raw.trim();
-        const length = /^(?:\d+|0x[0-9a-f]+)$/i.test(value) ? Number(value) : NaN;
-        return {value,length:Number.isSafeInteger(length) ? length : null};
-      });
-      if (!declarations.has(name)) declarations.set(name,[]);
-      declarations.get(name).push({type,dimensions,constant:/\bconst\b/.test(match[1])});
+  const globals=new Map(), structures=new Map();
+  const withoutIncludes=(value)=>value.replace(/^\s*(?:#?include\b[^\r\n]*(?:\r?\n|\r))+\s*/,"").trim();
+  function addDeclaration(destination,statement) {
+    const match=statement.match(/^((?:(?:static|const)\s+)*)([A-Za-z_]\w*)(?=\s|\[)\s*((?:\[[^\[\]]*\]\s*)*)([A-Za-z_]\w*)\s*((?:\[[^\[\]]*\]\s*)*)(?:=[\s\S]*)?$/);
+    if (!match) return;
+    const [,,type,before,name,after]=match;
+    const dimensions=Array.from((before+after).matchAll(/\[([^\[\]]*)\]/g),([,raw])=>{
+      const value=raw.trim();
+      const length=/^(?:\d+|0x[0-9a-f]+)$/i.test(value) ? Number(value) : NaN;
+      return {value,length:Number.isSafeInteger(length) ? length : null};
+    });
+    if (!destination.has(name)) destination.set(name,[]);
+    destination.get(name).push({type,dimensions,constant:/\bconst\b/.test(match[1])});
+  }
+  let start=0,depth=0,parentheses=0,members=null;
+  for (let i=0;i<clean.length;i++) {
+    const token=clean[i];
+    if (token==="(") parentheses++;
+    else if (token===")") parentheses=Math.max(0,parentheses-1);
+    else if (token==="{" && !parentheses) {
+      if (depth===0) {
+        const name=withoutIncludes(clean.slice(start,i)).match(/^struct\s+([A-Za-z_]\w*)$/)?.[1];
+        if (name) {
+          if (!structures.has(name)) structures.set(name,new Map());
+          members=structures.get(name);
+          start=i+1;
+        }
+      }
+      depth++;
+    } else if (token==="}" && !parentheses) {
+      depth=Math.max(0,depth-1);
+      if (!depth) { start=i+1;members=null; }
+    } else if (token===";" && !parentheses && (!depth || (depth===1 && members))) {
+      addDeclaration(members || globals,withoutIncludes(clean.slice(start,i)));
+      start=i+1;
     }
   }
-  return declarations;
+  return {globals,structures};
+}
+function variableIndexRanges({name,max,segmentDimensions},separator=" / ") {
+  if (!segmentDimensions) return max.map((n)=>"0–"+n).join(separator);
+  let offset=0;
+  return name.split(".").map((part,i)=>{
+    const next=offset+segmentDimensions[i];
+    const indexes=max.slice(offset,next).map((last)=>"[0–"+last+"]").join("");
+    offset=next;
+    return part+indexes;
+  }).join(".");
 }
 function auditMapDeclarations(source,expected) {
-  const declarations = scanMapDeclarations(source);
-  const names = new Map();
-  for (const key of declarations.keys()) {
-    const folded = key.toLowerCase();
-    if (!names.has(folded)) names.set(folded,[]);
-    names.get(folded).push(key);
-  }
-  const rows = expected.map(({name,type,max}) => {
-    const required = max.length ? type+" "+max.map((index) => "[0–"+index+"]").join("") : type;
-    const result = (status,details) => ({name,required,status,details});
-    const matches = declarations.get(name);
-    if (!matches) {
-      const similar = names.get(name.toLowerCase());
-      return result("错误",similar ? "大小写不一致。脚本里找到 "+similar.join("、")+"。" : "未找到全局变量声明。");
+  const {globals,structures}=scanMapDeclarations(source);
+  const rows=expected.map(({name,type,max,segmentDimensions})=>{
+    const parts=name.split(".");
+    const required=type+(max.length ? " "+(segmentDimensions ? variableIndexRanges({name,max,segmentDimensions}) :
+      max.map((last)=>"[0–"+last+"]").join("")) : "");
+    const result=(status,details)=>({name,required,status,details});
+    let candidates=globals,offset=0,uncertain;
+    let leaf;
+    for (const [i,part] of parts.entries()) {
+      const matches=candidates.get(part);
+      const path=parts.slice(0,i+1).join(".");
+      if (!matches) {
+        const similar=[...candidates.keys()].filter((key)=>key.toLowerCase()===part.toLowerCase());
+        return result("错误",similar.length ? "大小写不一致："+path+" 应使用 "+similar.join("、")+"。" :
+          i ? "在结构体中未找到成员 "+path+"。" : "未找到全局变量 "+part+" 的声明。");
+      }
+      if (matches.length!==1) return result("错误","找到 "+matches.length+" 条同名声明："+path+"。");
+      leaf=matches[0];
+      if (leaf.constant) return result("错误",path+" 为常量。句柄和玩家组绑定需要可写的变量。");
+      const count=segmentDimensions?.[i] ?? (i===parts.length-1 ? max.length : 0);
+      if (leaf.dimensions.length!==count) return result("错误",path+" 当前 "+leaf.dimensions.length+" 维，需要 "+count+" 维。");
+      for (const [index,{length}] of leaf.dimensions.entries()) {
+        const needed=max[offset+index];
+        if (length!==null && length<=needed) return result("错误",path+" 第 "+(index+1)+" 维只有 "+length+" 个元素，需要能访问 ["+needed+"]。");
+        if (length===null && !uncertain) uncertain=path+" 第 "+(index+1)+" 维为符号或表达式，请确认至少有 "+(needed+1)+" 个元素。";
+      }
+      offset+=count;
+      if (i<parts.length-1) {
+        candidates=structures.get(leaf.type);
+        if (!candidates) {
+          if (Object.values(mapStorageTypes).some((types)=>types.includes(leaf.type))) return result("错误",path+" 声明为 "+leaf.type+"，不能访问结构体成员。");
+          return result("复核","未找到 "+path+" 的结构体类型 "+leaf.type+"。请补充包含该类型的声明。");
+        }
+      }
     }
-    if (matches.length !== 1) return result("错误","找到 "+matches.length+" 条同名声明。");
-    const declaration = matches[0];
-    if (declaration.constant) return result("错误","当前声明是常量。模板和 GUI 配方需要可写变量。");
-    if (!mapStorageTypes[type]?.includes(declaration.type)) return result("错误","声明类型为 "+declaration.type+"。");
-    if (declaration.dimensions.length !== max.length) {
-      return result("错误","当前 "+declaration.dimensions.length+" 维，需要 "+max.length+" 维。");
-    }
-    const small = declaration.dimensions.findIndex(({length},i) => length !== null && length <= max[i]);
-    if (small >= 0) {
-      return result("错误","第 "+(small+1)+" 维只有 "+declaration.dimensions[small].length+
-        " 个元素，需要能访问 ["+max[small]+"]。");
-    }
-    const uncertain = declaration.dimensions.findIndex(({length}) => length === null);
-    if (uncertain >= 0) return result("复核","第 "+(uncertain+1)+" 维为符号或表达式，请确认至少有 "+(max[uncertain]+1)+" 个元素。");
-    if (declaration.type === "int" && ["对话框","对话框项"].includes(type)) {
+    if (!mapStorageTypes[type]?.includes(leaf.type)) return result("错误","声明类型为 "+leaf.type+"。");
+    if (uncertain) return result("复核",uncertain);
+    if (leaf.type==="int" && ["对话框","对话框项"].includes(type)) {
       return result("复核","脚本中的 int 能容纳句柄。请在 GUI 核对变量类型为「"+type+"」。");
     }
     return result("通过","名称、类型和数组范围已核对。");
   });
-  return {rows,declarations:declarations.size};
+  return {rows,declarations:globals.size};
 }
 let mapScriptRequest = 0;
 async function loadMapAuditFile(event) {
@@ -10068,7 +10124,7 @@ function openBindings() {
     input.type = "text";
     input.spellcheck = false;
     input.value = node.binding;
-    input.maxLength = 96;
+    input.maxLength = maxBindingLength;
     input.placeholder = node.id === 0 ? "gv_Dialog" : "gv_Items[1]";
     input.setAttribute("aria-label",node.name+" 的全局变量 ID");
     check.type = "checkbox";
@@ -10650,11 +10706,11 @@ function renderExportTab(tab) {
     button.disabled = blocked && ["script","variables","init","players"].includes(key);
   });
   if (variables) {
-    const rows = guiGlobals(plan,vote).map(({name,type,max}) => [
-      variableCopyButton(name),type,max.length ? String(max.length) : "—",
-      max.length ? max.map((value) => "0–"+value).join(" / ") : "—"
+    const rows = guiGlobals(plan,vote).map((entry) => [
+      variableCopyButton(entry.name),entry.type,entry.max.length ? String(entry.max.length) : "—",
+      entry.max.length ? variableIndexRanges(entry) : "—"
     ]);
-    $("bindingSummary").replaceChildren(rows.length ? createTable(["编辑器填写名称","GUI 类型","数组维数","每维需覆盖的索引"],rows) :
+    $("bindingSummary").replaceChildren(rows.length ? createTable(["GUI 变量 / 结构体成员","GUI 类型","数组维数","每维需覆盖的索引"],rows) :
       el("p","","当前布局没有绑定 GUI 变量。"));
     $("guiRecipe").textContent = guiRecipes[model.recipe] || "";
     renderObserverGuide();
@@ -10683,6 +10739,8 @@ function renderExportTab(tab) {
     variables && plan.globals.size ? "数组从 0 开始。在「查看脚本」里确认每个维度的声明元素数大于清单中的最大索引。" : "",
     variables && [...plan.globals.values()].some((entry)=>entry.playerIndexed) ?
       "独立实例首维使用游戏玩家编号，索引 0 留空。" : "",
+    variables && [...plan.globals.values()].some((entry)=>entry.segmentDimensions) ?
+      "点分隔的名称是已有结构体成员路径，按原结构体声明核对。" : "",
     tab === "script" && workspace.dialogs.some(({layout})=>layout.nodes.some((node)=>controlTemplate(node)===atlasButtonFrame)) ?
       "三状态按钮需要在「资源清单」下载 SC2WorkbenchAtlasButtons.SC2Layout，导入地图并登记到游戏 UI。" : "",
     tab === "script" && lobbyArt ? "此布局需要原模板贴图。准备本地文件后，在银河编辑器导入模块保留 "+lobbyAssetRoot+" 下的路径。" : "",
@@ -10698,7 +10756,7 @@ function openExport() {
   $("exportDialog").showModal();
 }
 function guiVariableName(name) {
-  return name.startsWith("gv_") && name.length > 3 ? name.slice(3) : name;
+  return !name.includes(".") && name.startsWith("gv_") && name.length > 3 ? name.slice(3) : name;
 }
 function variableCopyButton(name) {
   const value = guiVariableName(name);
@@ -10715,9 +10773,9 @@ function variableCopyButton(name) {
   return copy;
 }
 function variableText(plan,vote) {
-  const lines = guiGlobals(plan,vote).map(({name,type,max}) =>
-    [guiVariableName(name),type,max.length ? max.map((value) => "0–"+value).join(" × ") : "单个变量"].join("\t"));
-  return ["编辑器填写名称\tGUI 类型\t每维需覆盖的索引",...lines].join("\n");
+  const lines = guiGlobals(plan,vote).map((entry) =>
+    [guiVariableName(entry.name),entry.type,entry.max.length ? variableIndexRanges(entry," × ") : "—"].join("\t"));
+  return ["GUI 变量 / 结构体成员\tGUI 类型\t每维需覆盖的索引",...lines].join("\n");
 }
 async function copyCode(value,fallback,dialog = $("exportDialog")) {
   try {
@@ -10881,8 +10939,9 @@ const uiCreateHelpers = {
 };
 const uiCreatePattern = /^(?:DialogControlCreate(?:InPanel)?(?:FromTemplate)?|DialogCreate)$/;
 const uiCallPattern = /^(?:Dialog(?:Control)?(?:Create|Set|Destroy|Fade|Attach|Hookup|AddItem|SelectItem|ClearItems)|libNtve_gf_(?:CreateDialogItem|SetDialogItem|ShowHideDialog|DisplayScreen))/;
-const importRefPattern = /^[A-Za-z_]\w*(?:\[\d+\])*$/;
 const gameGlobalPattern = /^(?:gv_|lib[A-Za-z0-9_]+_gv_)/;
+const galaxyAssignmentPattern = new RegExp(String.raw`^(?:(?:int|bool|fixed|text|string|playergroup|dialog|dialogcontrol)\s+)?(`+
+  galaxyBindingPath+String.raw`)\s*=(?!=)\s*([\s\S]+)$`);
 const stringToken = /"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'/g;
 function scanUiGalaxy(source) {
   if (source.length > maxMapScriptSize) throw new Error("脚本超过 8 MB。请复制目标 UI 的创建函数。");
@@ -10939,7 +10998,8 @@ function scanUiGalaxy(source) {
   }
   if (!depth && !parentheses && code.slice(start).trim()) addStatement(free,code.length);
   if (free.statements.length) sections.push(free);
-  return {sections,free};
+  const globalNames=new Set(scanMapDeclarations(code).globals.keys());
+  return {sections,free,globalNames};
 }
 function splitGalaxyArgs(source) {
   if (!source.trim()) return [];
@@ -10954,9 +11014,16 @@ function splitGalaxyArgs(source) {
   args.push(source.slice(start).trim());
   return args;
 }
+function galaxyImportAssignment(code) {
+  const match=galaxyAssignmentPattern.exec(code);
+  if (!match) return null;
+  const target=parseBinding(match[1])?.ref;
+  return target ? {target,value:match[2].trim()} : null;
+}
 function galaxyImportCall(code) {
-  const match = code.match(/^(?:(?:int|bool|fixed|text|string|playergroup|dialog|dialogcontrol)\s+)?(?:([A-Za-z_]\w*(?:\s*\[\s*\d+\s*\])*)\s*=\s*)?([A-Za-z_]\w*)\s*\(([\s\S]*)\)$/);
-  return match ? {target:match[1]?.replace(/\s/g,""),name:match[2],args:splitGalaxyArgs(match[3])} : null;
+  const assignment=galaxyImportAssignment(code);
+  const match=(assignment?.value || code).match(/^([A-Za-z_]\w*)\s*\(([\s\S]*)\)$/);
+  return match ? {target:assignment?.target,name:match[1],args:splitGalaxyArgs(match[2])} : null;
 }
 function unwrapGalaxyExpression(value) {
   if (!value.startsWith("(") || !value.endsWith(")")) return value;
@@ -11006,6 +11073,7 @@ function reconstructGalaxyUi(scanned,chosen,initText,localized,screen = screenPr
   const initParts=initScan ? initScan.free.statements.length ? [initScan.free] : initScan.sections : [];
   if (initParts.length>1) throw new Error("请只粘贴一段初始化动作，或一个初始化函数。");
   const init=initParts[0];
+  const globalNames=new Set([...(scanned.globalNames || []),...(initScan?.globalNames || [])]);
   const freeCreates = scanned.free.statements.some(({code})=>galaxyImportCall(code)?.name==="DialogCreate");
   const after = [...(chosen.includes(scanned.free) || freeCreates ? [] : scanned.free.statements),...(init?.statements || [])];
   const launchCalls = new Map(after.map(({code})=>galaxyImportCall(code)).filter(Boolean).map(({name,args})=>[name,args]));
@@ -11017,29 +11085,37 @@ function reconstructGalaxyUi(scanned,chosen,initText,localized,screen = screenPr
   }
   const warn = (message) => { warnings.push({phase,line,message}); };
   const nativeKinds = new Map(Object.entries(kinds).map(([key,{native}]) => ["c_triggerControlType"+native,key]));
+  const globalBinding=(binding)=>gameGlobalPattern.test(binding.name) ||
+    (binding.segments && globalNames.has(binding.segments[0].name));
   function resolve(raw,depth = 0,preserveGlobal = false) {
     if (!raw || depth>12) return raw || "";
     const value = raw.trim();
     const unwrapped=unwrapGalaxyExpression(value);
     if (unwrapped!==value) return resolve(unwrapped,depth+1,preserveGlobal);
-    if (preserveGlobal && gameGlobalPattern.test(value) && importRefPattern.test(value)) return value;
-    const alias=locals.get(value) ?? constants.get(value);
+    const binding=parseBinding(value);
+    if (preserveGlobal && binding && globalBinding(binding)) return binding.ref;
+    const alias=locals.get(binding?.ref || value) ?? constants.get(value);
     if (typeof alias === "string" && alias !== value) return resolve(alias,depth+1,preserveGlobal);
     return value;
   }
   function lookup(raw) {
-    const value=resolve(raw).replace(/\s/g,"");
+    const resolved=resolve(raw);
+    const value=parseBinding(resolved)?.ref || resolved.replace(/\s/g,"");
     if (value==="DialogLastCreated()") return lastDialog;
     if (value==="DialogControlLastCreated()") return lastControl;
     return locals.get(value) || globals.get(value);
   }
   function store(target,record) {
     if (!target || !record) return;
-    if (!importRefPattern.test(target)) return;
-    if (!gameGlobalPattern.test(target)) {
+    const binding=parseBinding(target);
+    if (!binding) return;
+    if (!globalBinding(binding)) {
       locals.set(target,record);
       // Keep generated script handles available to an optional initialization fragment.
       if (!/^(lv_|lp_|auto)/.test(target)) globals.set(target,record);
+      if (binding.segments && !/^(lv_|lp_|auto)/.test(target)) {
+        warn("已识别界面动作。若 "+target+" 属于全局结构体，请同时导入其全局声明以保留绑定。");
+      }
       return;
     }
     globals.set(target,record);
@@ -11125,7 +11201,8 @@ function reconstructGalaxyUi(scanned,chosen,initText,localized,screen = screenPr
         return {audience:"groupMember",groupVar:group.groupVar,player:member.player};
       }
     }
-    if (gameGlobalPattern.test(value) && importRefPattern.test(value)) return {audience:"variable",groupVar:value};
+    const binding=parseBinding(value);
+    if (binding && globalBinding(binding)) return {audience:"variable",groupVar:binding.ref};
   }
   function setUiProperty(record,key,value,scope) {
     const node=record.node;
@@ -11322,13 +11399,12 @@ function reconstructGalaxyUi(scanned,chosen,initText,localized,screen = screenPr
         } else applyCall(call);
         continue;
       }
-      const assignment=code.match(/^(?:(?:int|fixed|bool|string|text|playergroup)\s+)?([A-Za-z_]\w*(?:\s*\[\s*\d+\s*\])*)\s*=\s*([^=][\s\S]*)$/);
+      const assignment=galaxyImportAssignment(code);
       if (assignment) {
-        const [,left,right]=assignment;
-        const target=left.replace(/\s/g,"");
-        const record=lookup(right);
+        const {target,value}=assignment;
+        const record=lookup(value);
         if (record?.node) store(target,record);
-        else locals.set(target,right.trim());
+        else locals.set(target,value);
       } else if (/\b(?:Dialog(?:Control)?(?:Create|Set|Destroy|Hookup|LastCreated)|libNtve_gf_(?:CreateDialogItem|SetDialogItem))\w*\s*\(/.test(code)) {
         warn("跳过条件、循环或未识别的界面动作。");
       }
@@ -11341,7 +11417,7 @@ function reconstructGalaxyUi(scanned,chosen,initText,localized,screen = screenPr
   }
   if (!docs.length) return {docs,warnings};
   for (const {id,layout} of docs) {
-    const original=layout.root.binding.replace(/^(?:gv_|lib\w+_gv_)/,"").replace(/(?:\[\d+\])+$/,"");
+    const original=layout.root.binding.replace(/^(?:gv_|lib\w+_gv_)/,"").replace(/\[\d+\]/g,"").replace(/\./g,"_");
     layout.prefix=("Imported_"+(original || id)).slice(0,32);
     for (const node of layout.nodes) {
       const record=records.get(node);
@@ -13054,7 +13130,7 @@ installTour();
 new ResizeObserver(setSurfaceSize).observe($("viewport"));
 if (new URLSearchParams(location.search).get("localAgent")==="1") {
   window.SC2WorkbenchAutomation=Object.freeze({
-    apiVersion:1,version:"1.0.3",exportProject:automationExport,
+    apiVersion:1,version:"1.0.4",exportProject:automationExport,
     downloadArchive:(archive)=>download("sc2-ui-return.zip",archive,"application/zip")
   });
 } else restoreAssetFolders();
