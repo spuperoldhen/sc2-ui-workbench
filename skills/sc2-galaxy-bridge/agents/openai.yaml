@@ -1,0 +1,13 @@
+interface:
+  display_name: SC2 Galaxy 导出与校验
+  short_description: 在本机导出工作台布局，接入银河编辑器并收集编译证据
+  default_prompt: 用 $sc2-galaxy-bridge 把这个工作台项目导出到测试地图，并在银河编辑器中校验。
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true
