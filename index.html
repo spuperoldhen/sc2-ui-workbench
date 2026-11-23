@@ -120,6 +120,18 @@ h2,h3{font-size:13px;line-height:1.3;margin:0;font-weight:710}
 .texture-hover{display:none}
 .preview .control.button:hover .texture-hover{display:block}
 .ctrl-text{position:relative;min-width:0;line-height:1.16}
+.sc2-inline-image{display:inline-block;width:1.1em;height:1.1em;vertical-align:-.19em;object-fit:contain}
+.sc2-inline-image .icon{width:100%;height:100%}
+.sc2-inline-image.is-missing{color:var(--muted)}
+.text-expression-preview{min-height:42px;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--stage);color:var(--ink);font-size:18px;white-space:pre-wrap;overflow-wrap:anywhere}
+.expression-preview-dock{position:sticky;top:0;z-index:1;background:var(--panel);padding:3px 0 8px}
+#expressionImageStatus{margin:6px 0 0;overflow-wrap:anywhere}
+.text-expression-token{min-width:0;margin:8px 0;padding:8px 10px 10px;border:1px solid var(--line);border-radius:6px}
+.text-expression-token legend{padding:0 5px;color:var(--accent);font:12px var(--mono)}
+.text-expression-token .form-row{grid-template-columns:minmax(86px,1fr) minmax(0,2.5fr) minmax(72px,1fr)}
+.text-expression-image .form-row{grid-template-columns:minmax(60px,1fr) minmax(60px,1fr) minmax(92px,1.4fr)}
+.text-expression-image legend{max-width:100%;overflow-wrap:anywhere}
+#expressionStatus:not(:empty){color:var(--danger)}
 .panel-inset{pointer-events:none}
 .panel-inset>.control{pointer-events:auto}
 .selection{position:absolute;pointer-events:none;z-index:2;border:1px solid #dfc4ff;box-shadow:0 0 9px #bc95ff50}
@@ -548,6 +560,10 @@ td code{overflow-wrap:anywhere;color:#dec8ff}
 .canvas-bar .auto-select-dialog:has(input:disabled){opacity:.55}
 .canvas-bar .pack-gap{width:64px;padding:3px 6px;font-size:11px}
 .canvas-bar .align-reference{max-width:none}
+.surface[data-style-brush],.surface[data-style-brush] .control,.surface[data-style-brush] .dialog-handle{cursor:crosshair}
+.control-style-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;margin:12px 0}
+.control-style-options label:has(input:disabled){opacity:.55}
+#controlStyleNameField{margin-top:12px}
 .overlap-menu{position:fixed;z-index:30;max-width:min(340px,calc(100vw - 16px));max-height:min(340px,calc(100vh - 16px));overflow:auto;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 30px var(--shadow)}
 .overlap-menu button{display:flex;justify-content:flex-start;width:100%;text-align:left;white-space:normal;overflow-wrap:anywhere}
 #pointerHint{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -985,6 +1001,8 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
         <div class="cluster canvas-layout-tools">
           <label class="checkrow auto-select-dialog" title="合成画布中，点击控件会选中它并切到所属对话框。"><input id="autoSelectDialog" type="checkbox" checked>自动选择</label>
           <div id="alignmentTools" class="alignment-tools" role="group" aria-label="对齐和等距分布"></div>
+          <button id="openControlStyles" type="button">控件样式</button>
+          <button id="controlStyleBrush" type="button" aria-pressed="false" title="从当前控件拾取视觉样式，再点击目标。Esc 取消。">格式刷</button>
           <select id="alignReference" class="align-reference" aria-label="对齐参考">
             <option value="selection">对齐到选区</option><option value="primary">对齐到最后选中</option><option value="dialog">对齐到对话框</option>
           </select>
@@ -1013,6 +1031,42 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
   <footer class="bottom"><span>拖入图片　<kbd>Ctrl / ⌘</kbd> + <kbd>V</kbd> 粘贴图文　<kbd>Shift</kbd> + 拖角等比缩放　<kbd>Alt</kbd> + 左键拖拽复制</span><span><kbd>空格</kbd> 平移　<kbd>Ctrl / ⌘</kbd> + 滚轮缩放　<kbd>/</kbd> 搜索图层　<kbd>⇧ 2</kbd> 聚焦选区</span><span>坐标与尺寸使用 SC2 界面单位</span></footer>
 </main>
 <div id="overlapMenu" class="overlap-menu" role="group" aria-label="鼠标下的控件" hidden></div>
+<dialog id="controlStylesDialog" aria-labelledby="controlStylesTitle">
+  <header class="modal-head"><h2 id="controlStylesTitle">控件样式</h2><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
+  <div class="modal-body">
+    <div class="form-field"><label for="controlStyleSource">样式来源</label><select id="controlStyleSource"></select></div>
+    <div id="controlStyleNameField" class="form-field"><label for="controlStyleName">样式名称</label><input id="controlStyleName" type="text" maxlength="60"></div>
+    <div id="controlStyleOptions" class="control-style-options" role="group" aria-label="样式包含的属性"></div>
+    <p>文字、表达式变量与触发器绑定保留。勾选位置后，目标会使用来源的 X/Y 偏移。</p>
+    <p id="controlStyleStatus" role="status"></p>
+    <div class="export-actions">
+      <button id="brushControlStyle" type="button">开始格式刷</button>
+      <button id="saveControlStyle" class="primary" type="button">保存样式</button>
+      <button id="applyControlStyle" class="primary" type="button" hidden>应用到选中项</button>
+    </div>
+  </div>
+</dialog>
+<dialog id="textExpressionDialog" aria-labelledby="textExpressionTitle">
+  <header class="modal-head"><h2 id="textExpressionTitle">文字表达式</h2><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
+  <div class="modal-body">
+    <div class="form-field"><label for="expressionTemplate">模板</label><textarea id="expressionTemplate" rows="3" spellcheck="false" placeholder="晶体矿 ~A~"></textarea></div>
+    <div class="asset-tools"><button id="insertExpressionImage" type="button">插入贴图</button><button id="insertExpressionSlot" type="button">插入占位符</button></div>
+    <div class="expression-preview-dock">
+      <div class="form-label" id="expressionPreviewTitle">实时预览</div>
+      <div id="expressionPreview" class="text-expression-preview" role="group" aria-labelledby="expressionPreviewTitle"></div>
+      <p id="expressionImageStatus" hidden></p>
+    </div>
+    <p class="hint-row">用 <code>~A~</code>、<code>~Count~</code> 添加占位符。下方填写 Galaxy 变量与预览值。</p>
+    <div id="expressionTokens"></div>
+    <section id="expressionImages" hidden aria-labelledby="expressionImagesTitle">
+      <h3 id="expressionImagesTitle">行内图片</h3>
+      <p class="hint-row">宽高使用 SC2 界面单位，留空使用游戏默认值。</p>
+      <div id="expressionImageFields"></div>
+    </section>
+    <p id="expressionStatus" role="status"></p>
+    <div class="export-actions"><button type="button" id="applyTextExpression" class="primary">保存表达式</button></div>
+  </div>
+</dialog>
 <dialog id="projectSceneDialog" aria-labelledby="projectSceneTitle">
   <header class="modal-head"><h2 id="projectSceneTitle">合成画布预览</h2><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
   <div class="modal-body"><div id="projectSceneLarge" class="scene-thumb" role="img" aria-label="项目合成画布"></div><p id="projectSceneStatus" role="status"></p></div>
@@ -1024,6 +1078,14 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
     <p id="renameProjectStatus" role="status"></p>
     <div class="export-actions"><button type="submit" class="primary">保存名称</button></div>
   </form>
+</dialog>
+<dialog id="deleteProjectDialog" aria-labelledby="deleteProjectTitle">
+  <header class="modal-head"><h2 id="deleteProjectTitle">删除项目</h2><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
+  <div class="modal-body">
+    <p id="deleteProjectMessage"></p>
+    <p id="deleteProjectStatus" role="status"></p>
+    <div class="export-actions"><button type="button" id="confirmDeleteProject">确认删除</button></div>
+  </div>
 </dialog>
 <dialog id="crossCopyDialog" aria-labelledby="crossCopyTitle">
   <header class="modal-head"><h2 id="crossCopyTitle">复制到对话框</h2><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
@@ -1255,23 +1317,25 @@ gv_TutorialButton = TutorialUI_Button_2;</code></pre>
 <dialog id="mapFolderDialog" aria-labelledby="mapFolderTitle">
   <header class="modal-head"><h2 id="mapFolderTitle">导入 SC2Components</h2><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
   <div class="modal-body">
-    <p>选择银河编辑器另存为组件后的地图根文件夹。工作台会列出创建 UI 的 GUI 函数、语言、字体样式和本地素材。</p>
+    <p id="mapFolderHelp"></p>
     <div class="asset-tools">
       <button type="button" id="pickMapFolder">选择地图文件夹</button>
       <button type="button" id="pickCompiledMapScript" hidden>补充已生成的 Galaxy 脚本</button>
     </div>
     <p id="mapFolderStatus" role="status"></p>
     <div id="mapFolderOptions" hidden>
-      <div class="font-fields">
-        <div class="form-field"><label for="mapFolderLanguage">本地化语言</label><select id="mapFolderLanguage"></select></div>
-        <div class="form-field"><label for="mapFolderFont">字体样式文件</label><select id="mapFolderFont"></select></div>
+      <div id="mapFolderImportFields">
+        <div class="font-fields">
+          <div class="form-field"><label for="mapFolderLanguage">本地化语言</label><select id="mapFolderLanguage"></select></div>
+          <div class="form-field"><label for="mapFolderFont">字体样式文件</label><select id="mapFolderFont"></select></div>
+        </div>
+        <div class="form-field"><label for="mapFolderFunction">导入哪些 UI</label><select id="mapFolderFunction"></select></div>
       </div>
-      <div class="form-field"><label for="mapFolderFunction">导入哪些 UI</label><select id="mapFolderFunction"></select></div>
       <p id="mapFolderSummary"></p>
       <details id="mapFolderDiagnostics" class="font-xml" hidden><summary>识别记录</summary><ul id="mapFolderIssues" class="guide-steps"></ul></details>
       <div class="export-actions">
-        <button type="button" id="reconnectMapFolder" hidden>重新连接素材 · 保留当前布局</button>
-        <button type="button" id="applyMapFolder" class="primary">打开为可编辑项目</button>
+        <button type="button" id="reconnectMapFolder" class="primary" hidden>连接原地图</button>
+        <button type="button" id="applyMapFolder" class="primary">打开为新项目</button>
       </div>
     </div>
   </div>
@@ -1664,6 +1728,7 @@ gv_TutorialButton = TutorialUI_Button_2;</code></pre>
       <button type="button" data-export="script" aria-pressed="true">1 · 自定义脚本</button>
       <button type="button" data-export="variables" aria-pressed="false">2 · GUI 变量清单</button>
       <button type="button" data-export="init" aria-pressed="false">3 · 初始化动作</button>
+      <button type="button" id="exportTextRefreshTab" data-export="textRefresh" aria-pressed="false" hidden>刷新文字表达式</button>
       <button type="button" data-export="players" aria-pressed="false">玩家覆盖清单</button>
       <button type="button" data-export="mapAudit" aria-pressed="false">地图变量核对</button>
       <button type="button" data-export="resources" aria-pressed="false">资源清单</button>
@@ -2077,6 +2142,47 @@ function unescapeMarkup(value) {
 function escapeMarkup(value) {
   return value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
+function inlineTextImage(tag) {
+  const body=/^<img\s+([^<>]*?)\s*\/>$/i.exec(tag)?.[1];
+  if (!body) return null;
+  const attr={};
+  const rest=body.replace(/([a-z]+)\s*=\s*(?:"([^"<>]*)"|'([^'<>]*)')/gi,(_,key,double,single)=>{
+    attr[key.toLowerCase()]=unescapeMarkup(double ?? single);
+    return "";
+  });
+  if (rest.trim() || Object.keys(attr).some((key)=>!["path","width","height","alignment","align"].includes(key))) return null;
+  const path=assetPath(attr.path);
+  if (!path || /[:\x00-\x1f]/.test(path) || path.startsWith("\\") || path.split("\\").includes("..")) return null;
+  const size=(key)=>/^\d{1,4}$/.test(attr[key] || "") && Number(attr[key])>0 ? Number(attr[key]) : 0;
+  const value=attr.alignment ?? attr.align ?? "";
+  const alignment=/^[A-Za-z]+$/.test(value) ? textImageAlignment(value) || value : "";
+  return {kind:"image",path,width:size("width"),height:size("height"),alignment};
+}
+function serializeTextImage({path,width,height,alignment}) {
+  return '<img path="'+escapeMarkup(path).replace(/"/g,"&quot;")+'"'+(width?' width="'+width+'"':"")+
+    (height?' height="'+height+'"':"")+(alignment?' alignment="'+alignment+'"':"")+'/>';
+}
+function textImagePaths(value) {
+  return textInlineImages(value).map(({image})=>image.path);
+}
+function textInlineImages(value) {
+  return Array.from((value || "").matchAll(/<img\b[^<>]*\/>/gi),(match)=>({
+    start:match.index,end:match.index+match[0].length,image:inlineTextImage(match[0])
+  })).filter(({image})=>image);
+}
+const textImageAlignments={
+  Top:{label:"顶端",preview:"top"},UpperMiddle:{label:"中间偏上",preview:"0.22em"},
+  Middle:{label:"中间",preview:"middle"},AbsoluteMiddle:{label:"绝对居中",preview:"0em"},
+  Bottom:{label:"底端",preview:"bottom"}
+};
+function textImageAlignment(value) {
+  return Object.keys(textImageAlignments).find((key)=>key.toLowerCase()===value.toLowerCase());
+}
+function inlineImageAsset(path) {
+  const entry=visualAssetEntry(assetKey(path));
+  const source=entry?.source;
+  return source && (source.file || (source.url && (source.embedded || !/\.(dds|tga)$/i.test(source.name)))) ? entry : null;
+}
 function parseRichText(value,enabled = true) {
   const normalized = value.replace(/\r\n?/g,"\n");
   const root = [];
@@ -2084,6 +2190,8 @@ function parseRichText(value,enabled = true) {
   const destination = () => stack.length ? stack[stack.length-1].children : root;
   for (const raw of normalized.split(/(<[^<>]*>|\n)/g)) {
     if (!raw) continue;
+    const image=enabled && inlineTextImage(raw);
+    if (image) { destination().push(image);continue; }
     const open = enabled && raw.match(/^<(c|s)\s+val\s*=\s*(?:"([^"<>]*)"|'([^'<>]*)')\s*>$/);
     const close = enabled && raw.match(/^<\/(c|s)\s*>$/);
     const val = open ? unescapeMarkup(open[2] ?? open[3]).trim() : "";
@@ -2101,6 +2209,31 @@ function appendRichText(target,tokens) {
   for (const token of tokens) {
     if (token.kind === "line") target.append(el("br"));
     else if (token.kind === "text") target.append(token.val);
+    else if (token.kind === "image") {
+      const entry=inlineImageAsset(token.path);
+      function imageElement(available) {
+        const image=el(available ? "img" : "span","sc2-inline-image");
+        image.title=token.path;
+        if (token.width || token.height) {
+          image.style.width=token.width ? token.width+"px" : available ? "auto" : token.height+"px";
+          image.style.height=token.height ? token.height+"px" : available ? "auto" : token.width+"px";
+        }
+        const alignment=textImageAlignment(token.alignment);
+        if (alignment) image.style.verticalAlign=textImageAlignments[alignment].preview;
+        if (!available) {
+          image.classList.add("is-missing");
+          image.append(icon("image"));
+        }
+        return image;
+      }
+      const image=imageElement(Boolean(entry));
+      target.append(image);
+      if (entry) {
+        image.alt=pathName(token.path);
+        image.addEventListener("error",()=>image.replaceWith(imageElement(false)),{once:true});
+        setThumb(image,entry);
+      }
+    }
     else if (!token.closed) {
       target.append(token.raw);
       appendRichText(target,token.children);
@@ -2119,10 +2252,120 @@ function encodeRichText(tokens) {
   return tokens.map((token) => {
     if (token.kind === "line") return "<n/>";
     if (token.kind === "text") return escapeMarkup(token.val);
+    if (token.kind === "image") return serializeTextImage(token);
     const children = encodeRichText(token.children);
     if (!token.closed) return escapeMarkup(token.raw)+children;
     return '<'+token.kind+' val="'+escapeMarkup(token.val).replace(/"/g,"&quot;")+'">'+children+"</"+token.kind+">";
   }).join("");
+}
+
+const expressionSlotPattern=/~([A-Za-z_][A-Za-z0-9_]{0,31})~/g;
+const expressionTypes={int:"整数",fixed:"实数",string:"字符串",text:"文本"};
+const expressionSamples={int:"300",fixed:"0.0"};
+const expressionSlotLimit=32;
+let expressionCanvasDraft=null;
+function textExpressionParts(template) {
+  const parts=[];
+  let literal="";
+  function emitSlot(key) {
+    if (literal) parts.push({literal});
+    literal="";
+    parts.push({key});
+  }
+  function emit(tokens) {
+    for (const token of tokens) {
+      if (token.kind==="text") {
+        let start=0;
+        for (const match of token.val.matchAll(expressionSlotPattern)) {
+          literal+=escapeMarkup(token.val.slice(start,match.index));
+          emitSlot(match[1]);
+          start=match.index+match[0].length;
+        }
+        literal+=escapeMarkup(token.val.slice(start));
+      } else if (token.children) {
+        const empty=encodeRichText([{...token,children:[]}]);
+        const closing=token.closed ? "</"+token.kind+">" : "";
+        literal+=closing ? empty.slice(0,-closing.length) : empty;
+        emit(token.children);
+        literal+=closing;
+      } else literal+=encodeRichText([token]);
+    }
+  }
+  emit(parseRichText(template));
+  if (literal) parts.push({literal});
+  return parts;
+}
+function expressionSlotKeys(template) {
+  return [...new Set(textExpressionParts(template).flatMap(({key})=>key ? [key] : []))];
+}
+function cleanTextExpression(value) {
+  if (!value || typeof value.template!=="string") return undefined;
+  const template=string(value.template,maxControlText);
+  const used=new Set();
+  const tokens=(Array.isArray(value.tokens) ? value.tokens : []).slice(0,expressionSlotLimit)
+    .filter((token)=>/^[A-Za-z_][A-Za-z0-9_]{0,31}$/.test(token?.key || "") && !used.has(token.key) && used.add(token.key))
+    .map((token)=>({key:token.key,type:Object.hasOwn(expressionTypes,token.type)?token.type:"int",
+      ref:string(token.ref,maxBindingLength).trim(),sample:string(token.sample,120)}));
+  return {template,tokens};
+}
+function activeTextExpression(node) {
+  return node?.textMode==="expression" ? node.textExpression : null;
+}
+function expressionBindingRef(value,playerIndex) {
+  return value.replace(/\[\s*player\s*\]/g,"["+playerIndex+"]");
+}
+function expressionFields(expr,root) {
+  const keys=expressionSlotKeys(expr.template);
+  const errors=[];
+  const bindings=[];
+  if (!expr.template.trim()) errors.push("请填写文字模板。");
+  if (keys.length>expressionSlotLimit) errors.push("最多可添加 "+expressionSlotLimit+" 个不同的占位符。");
+  for (const key of keys.slice(0,expressionSlotLimit)) {
+    const token=expr.tokens.find((entry)=>entry.key===key);
+    const label="~"+key+"~";
+    if (!token?.ref.trim()) {
+      errors.push(label+" 请填写 Galaxy 变量路径。");
+      continue;
+    }
+    if (/\[\s*player\s*\]/.test(token.ref) && !root.perPlayer) {
+      errors.push(label+" 使用 [player] 时，请开启对话框的「每名玩家独立创建一套」。");
+      continue;
+    }
+    const ref=expressionBindingRef(token.ref,root.playerLimit);
+    const {error}=inspectBinding(ref);
+    if (error) errors.push(label+" "+error);
+    else bindings.push({ref,type:expressionTypes[token.type],label});
+  }
+  return {errors,bindings};
+}
+function previewExpressionText(node) {
+  const expr=activeTextExpression(node);
+  if (!expr) return node.text;
+  const tokens=new Map(expr.tokens.map((token)=>[token.key,token]));
+  return textExpressionParts(expr.template).map((part)=>{
+    if (!part.key) return part.literal;
+    const token=tokens.get(part.key);
+    return escapeMarkup(token?.sample || expressionSamples[token?.type] || "~"+part.key+"~");
+  }).join("");
+}
+function controlPreviewTextTokens(node) {
+  const expr=activeTextExpression(node);
+  return parseRichText(expr ? previewExpressionText(node) : node.text,Boolean(expr) || node.richText);
+}
+function compileTextExpression(node,playerIndex) {
+  const expr=activeTextExpression(node);
+  const tokens=new Map(expr.tokens.map((item)=>[item.key,item]));
+  const values=textExpressionParts(expr.template).map((part)=>{
+    if (!part.key) return "StringToText("+galaxyString(part.literal)+")";
+    const token=tokens.get(part.key);
+    const ref=expressionBindingRef(token.ref,playerIndex);
+    if (token.type==="int") return "IntToText("+ref+")";
+    if (token.type==="fixed") return "FixedToText("+ref+", c_fixedPrecisionAny)";
+    if (token.type==="string") return "StringToText("+ref+")";
+    return ref;
+  });
+  const text=values.length ? "("+values.join(" + ")+")" : 'StringToText("")';
+  return node.color ? "TextWithColor("+text+", "+galaxyColor(node.color)+")" : text;
 }
 
 const skinProfiles = {common:"通用",terran:"人族",protoss:"星灵",zerg:"异虫"};
@@ -2823,6 +3066,11 @@ function readProject(data) {
       checked:source.checked === true,options:string(source.options,5000,node.options),choice:number(source.choice,0,100,0),
       previewFont:number(source.previewFont,0,144,0),previewAlign:["left","center","right"].includes(source.previewAlign) ? source.previewAlign : "",
       previewBold:source.previewBold === true,previewGlow:source.previewGlow === true});
+    if (textKinds.has(node.type)) {
+      const expression=cleanTextExpression(source.textExpression);
+      if (expression) node.textExpression=expression;
+      if (source.textMode==="expression" && expression) node.textMode="expression";
+    }
     if (listKinds.has(node.type) && Array.isArray(source.optionKeys)) {
       node.optionKeys=source.optionKeys.slice(0,100).map((key)=>string(key,200));
     }
@@ -2885,14 +3133,15 @@ const diffFields = [
   ["名称",["name"]],["类型",["type"]],["位置",["anchor","x","y","parent","attachId","relativeDialog","attachAnchor"]],
   ["尺寸",["w","h","full"]],["GUI 绑定",["binding"]],["脚本前缀",["prefix"]],
   ["贴图和渲染",["path","hover","imageMode","tiled","tint","opacity","blend","rotation","desaturate","template"]],
-  ["文字和字体",["text","textKey","style","color","richText","writeoutMs","tooltip","tooltipKey"]],
+  ["文字和字体",["text","textKey","textMode","textExpression","style","color","richText","writeoutMs","tooltip","tooltipKey"]],
   ["初始状态",["visible","enabled","background","modal","priority","audience","player","groupVar","observed"]],
   ["单位和选项",["unitLink","min","max","value","checked","options","optionKeys","choice"]],
   ["玩家实例",["perPlayer","playerLimit"]],["玩家覆盖",["variants"]]
 ];
 const diffLabels = {anchor:"锚点",x:"X",y:"Y",parent:"父容器",attachId:"附着目标",relativeDialog:"附着对话框",
   attachAnchor:"附着锚点",w:"宽",h:"高",full:"铺满",binding:"变量",prefix:"前缀",path:"贴图",hover:"悬停",
-  text:"文字",textKey:"文本键",visible:"可见",template:"模板",perPlayer:"每名玩家一套",playerLimit:"最大玩家编号"};
+  text:"文字",textKey:"文本键",textMode:"文字来源",textExpression:"表达式",visible:"可见",
+  template:"模板",perPlayer:"每名玩家一套",playerLimit:"最大玩家编号"};
 const trackedFields = new Set(diffFields.flatMap(([,keys])=>keys));
 function snapshotDialog({id,layout}) {
   const copy = (item) => ({...Object.fromEntries(Object.entries(item).filter(([key])=>key==="id" || trackedFields.has(key))),
@@ -3109,6 +3358,7 @@ function renderCanvasTools() {
     control.disabled=preview || !enough;
   }
   $("openCrossCopy").disabled=preview || !selected || workspace.dialogs.length<2;
+  updateControlStyleTools();
 }
 const maxSavedComponents=24;
 function readComponents(data) {
@@ -3566,8 +3816,10 @@ const componentFontExt = /\.(ttf|otf|woff2?)$/i;
 const componentScriptPath = "Scripts/SC2WorkbenchUI.galaxy";
 const componentZipLimit = 256*1024*1024;
 let mapFolderRequest = 0;
+let mapFolderMode = "import";
 let pendingMapFolder = null;
 let connectedMapFolder = null;
+const mapConnections = new Map();
 let componentAssets = new Map();
 let mapReturnPlan = null;
 let mapReturnRequest = 0;
@@ -3633,7 +3885,7 @@ function componentFingerprint(name,identity) {
   for (const char of name+"\n"+identity) hash=Math.imul(hash^char.codePointAt(0),16777619);
   return (hash>>>0).toString(16).padStart(8,"0");
 }
-async function scanComponentFolder(files) {
+async function scanComponentFolder(files,{assetsOnly=false}={}) {
   const {name,entries}=componentIndex(files);
   const all=[...entries.values()];
   const pickNamed=(name)=>entries.get(name.toLowerCase()) || entries.get("base.sc2data/"+name.toLowerCase()) ||
@@ -3676,12 +3928,12 @@ async function scanComponentFolder(files) {
   const layouts=all.filter(({path})=>/\.sc2layout$/i.test(path) && /(^|\/)UI\/Layout\//i.test(path));
   const locales=[...new Set([...textEntries,...fonts,...pictures].map(({locale})=>locale).filter(Boolean))].sort((a,b)=>
     (componentLocales.indexOf(a.toLowerCase())+4)%4-(componentLocales.indexOf(b.toLowerCase())+4)%4 || a.localeCompare(b));
-  const folder={name,entries,index,triggers,script,pictures,fontFiles,layouts,texts,unreadTexts,fonts,locales,signature,issues,aliases};
-  if (script) {
+  const folder={name,entries,index,triggers,script,pictures,fontFiles,layouts,texts,unreadTexts,fonts,locales,signature,issues,aliases,assetsOnly};
+  if (!assetsOnly && script) {
     try { await loadComponentScript(folder,script); }
     catch (error) { issues.push(error.message); }
   }
-  if (!folder.candidates?.length) folder.issues.push(triggers ?
+  if (!assetsOnly && !folder.candidates?.length) folder.issues.push(triggers ?
     "找到 GUI 触发器文件。请从触发器编辑器「查看脚本」补充生成的脚本，工作台从编译后的创建动作识别布局。" :
     "未找到可静态识别的对话框创建动作。可以补充包含 DialogCreate 的生成脚本。");
   return folder;
@@ -3771,13 +4023,17 @@ function componentPictures(folder,locale) {
   }
   return pictures;
 }
-function attachComponentImages(folder,locale) {
+function clearComponentImages() {
   for (const [key,{current,previous}] of componentAssets) {
     if (catalog.get(key)!==current) continue;
     if (previous) catalog.set(key,previous);
     else catalog.delete(key);
   }
   componentAssets.clear();
+  connectedMapFolder=null;
+}
+function attachComponentImages(folder,locale) {
+  clearComponentImages();
   const registered=componentPictures(folder,locale);
   for (const [key,{path,entry}] of registered) {
     const previous=catalog.get(key);
@@ -3785,7 +4041,18 @@ function attachComponentImages(folder,locale) {
     componentAssets.set(key,{current:catalog.get(key),previous});
   }
   connectedMapFolder={folder,locale};
+  mapConnections.set(folder.signature+"\n"+locale,connectedMapFolder);
   return new Set([...registered.values()].map(({entry})=>entry.path)).size;
+}
+function syncMapConnection() {
+  const source=workspace.componentSource;
+  const next=source && mapConnections.get(source.signature+"\n"+source.locale);
+  if ((next || null)===connectedMapFolder) return;
+  clearCanvasImageCatalog();
+  if (next) {
+    attachComponentImages(next.folder,next.locale);
+    previewComponentFonts(next.folder,next.locale,next.folder.signature);
+  } else clearComponentImages();
 }
 async function previewComponentFonts(folder,locale,signature) {
   if (typeof FontFace === "undefined") return;
@@ -3860,7 +4127,10 @@ function planLocalizedReturn(project,folder,locale) {
       const prior=snapshots.get(id)?.get(node.id);
       for (const item of [node,...(node.variants || [])]) {
         const old=item===node ? prior : prior?.variants?.find((variant)=>scopeKey(variant)===scopeKey(item));
-        for (const field of ["text","tooltip"]) record(item[field+"Key"],item[field],old?.[field]);
+        for (const field of ["text","tooltip"]) {
+          if (field==="text" && activeTextExpression(item)) continue;
+          record(item[field+"Key"],item[field],old?.[field]);
+        }
       }
       if (listKinds.has(node.type)) {
         const priorOptions=new Map(listOptionRows(prior || {options:""}).map(({key,text})=>[key,text]));
@@ -4007,6 +4277,7 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
         galaxyName:binding.name,indexes:binding.indexes,...(binding.segments ? {memberPath:binding.segments} : {}),
         ...(layout.root.perPlayer ? {playerIndexed:true} : {})}} : {}),
       ...(node.variants?.length ? {overrideAudiences:node.variants.map(scopeFor)} : {}),
+      ...(activeTextExpression(node) ? {textExpression:node.textExpression} : {}),
       ...(intent ? {intent} : {})};
   };
   const encodeResource = (row) => {
@@ -4028,7 +4299,8 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
     target:{format:"SC2Components",...(plan.metadata ? {sourceMap:plan.metadata.name,locale:plan.metadata.locale,
       previousUIFunctions:plan.metadata.functions} : {})},
     integration:{script:componentScriptPath,include:returnInclude,initialization:initActionFile,filesDirectory:returnFilesDirectory,
-      triggerImplementation:"gui",mapChanges:"mapCopy"},
+      triggerImplementation:"gui",mapChanges:"mapCopy",
+      ...(plan.exported.textRefresh ? {textRefresh:plan.exported.textRefresh} : {})},
     dialogs:project.dialogs.map(({id,layout})=>({
       id,prefix:layout.prefix,createFunction:layout.prefix+"_Create",renderPriority:layout.root.priority,
       instanceMode:layout.root.perPlayer ? "perPlayer" : "shared",
@@ -4039,10 +4311,10 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
       audience:scopeFor(layout.root),dialog:controlInfo(layout.root,layout),
       controls:layout.nodes.map((node)=>controlInfo(node,layout))
     })),
-    variables:guiGlobals(plan.exported.plan,plan.exported.vote).map(({name,type,max,playerIndexed,segmentDimensions})=>({
+    variables:guiGlobals(plan.exported.plan,plan.exported.vote).map(({name,type,max,playerIndexed,segmentDimensions,readOnly})=>({
       galaxyName:name,guiIdentifier:guiVariableName(name),guiType:type,
       maximumIndexes:max,minimumArrayLengths:max.map((index)=>index+1),...(playerIndexed ? {playerIndexed:true} : {}),
-      ...(segmentDimensions ? {storage:"structMember",segmentDimensions} : {})
+      ...(segmentDimensions ? {storage:"structMember",segmentDimensions} : {}),...(readOnly ? {readOnly:true} : {})
     })),
     resources:resources.map(encodeResource),
     files:plan.rows.map(({path,kind})=>({mapPath:path,archivePath:returnFilesDirectory+"/"+path,type:fileTypes[kind] || kind})),
@@ -4053,7 +4325,8 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
 function mapReturnInstructions(plan) {
   const variables=guiGlobals(plan.exported.plan,plan.exported.vote);
   const gui=variables
-    .map((entry)=>entry.name+"  "+entry.type+(entry.max.length?"  索引 "+variableIndexRanges(entry," × "):""));
+    .map((entry)=>entry.name+"  "+entry.type+(entry.max.length?"  索引 "+variableIndexRanges(entry," × "):"")+
+      (entry.readOnly ? "  文字表达式读取" : ""));
   const phases=plan.metadata?.functions || [];
   const list=plan.rows.map(({path,kind})=>path+"  "+kind);
   return [
@@ -4197,19 +4470,30 @@ function showComponentIssues(container,list,issues) {
 }
 function refreshMapFolder(folder=pendingMapFolder) {
   const ready=Boolean(folder);
+  const reconnecting=mapFolderMode==="reconnect";
   $("mapFolderOptions").hidden=!ready;
-  $("pickCompiledMapScript").hidden=!ready;
+  $("pickCompiledMapScript").hidden=!ready || reconnecting;
+  $("mapFolderImportFields").hidden=reconnecting;
+  $("applyMapFolder").hidden=reconnecting;
   if (!ready) return;
-  const locale=$("mapFolderLanguage").value;
+  const metadata=workspace.componentSource;
+  const locale=reconnecting ? metadata?.locale || "" : $("mapFolderLanguage").value;
   const candidates=folder.candidates || [];
   const imageAliases=mapImageAliases(folder.pictures,locale);
   const images=new Set([...imageAliases.values()].map(({entry})=>entry.path)).size;
   const textFiles=effectiveComponentTexts(folder,locale);
   $("mapFolderStatus").textContent=folder.name+(folder.script ? " · 脚本 "+folder.script.path : "");
-  $("mapFolderSummary").textContent=candidates.length+" 个 UI 创建函数 · "+textFiles.length+" 份文本 · "+
+  $("mapFolderSummary").textContent=(reconnecting ? "" : candidates.length+" 个 UI 创建函数 · ")+textFiles.length+" 份文本 · "+
     images+" 张贴图 · "+folder.fonts.length+" 份字体样式";
   $("applyMapFolder").disabled=!candidates.length;
-  $("reconnectMapFolder").hidden=workspace.componentSource?.signature!==folder.signature;
+  const same=metadata?.signature===folder.signature;
+  const updated=reconnecting && !same && metadata?.name===folder.name;
+  $("reconnectMapFolder").hidden=!same && !updated;
+  $("reconnectMapFolder").classList.toggle("primary",reconnecting);
+  $("reconnectMapFolder").textContent=updated ? "确认连接已更新的地图" : "连接原地图";
+  if (reconnecting && !same) $("mapFolderStatus").textContent=updated ?
+    "地图文件已有变化。请确认「"+folder.name+"」是当前项目的原地图，回导会使用此目录中的文本。" :
+    "当前项目来自「"+(metadata?.name || "原地图")+"」。请选择该地图的组件根目录。";
   showComponentIssues($("mapFolderDiagnostics"),$("mapFolderIssues"),folder.issues);
 }
 function componentFunctionLabel(section,localized) {
@@ -4281,12 +4565,24 @@ function validConnectedFolder(project=workspace) {
   return metadata && metadata.signature===connectedMapFolder?.folder.signature &&
     metadata.locale===connectedMapFolder.locale ? connectedMapFolder.folder : null;
 }
-function openMapFolder() {
+function openMapFolder(mode="import") {
   closeMenu();
   if ($("mapFolderDialog").open) return;
+  mapFolderMode=mode;
+  const reconnecting=mode==="reconnect";
+  $("mapFolderTitle").textContent=reconnecting ? "重新连接地图文件夹" : "导入 SC2Components";
+  $("mapFolderHelp").textContent=reconnecting ?
+    "选择当前项目对应的地图组件根目录，重新载入文本和贴图，再继续导出回导包。" :
+    "选择地图的组件根目录，导入对话框、本地化文本和素材。导入结果会作为新项目打开，当前项目会保留在项目管理中。";
   $("mapFolderStatus").textContent="请选择地图组件文件夹。";
-  if (pendingMapFolder) drawMapFolder(pendingMapFolder);
-  else refreshMapFolder();
+  if (reconnecting) {
+    pendingMapFolder=null;
+    refreshMapFolder();
+  } else if (pendingMapFolder && !pendingMapFolder.assetsOnly) drawMapFolder(pendingMapFolder);
+  else {
+    pendingMapFolder=null;
+    refreshMapFolder();
+  }
   $("mapFolderDialog").showModal();
 }
 function openMapReturn() {
@@ -4303,13 +4599,13 @@ function openMapReturn() {
       resourceLocations(row,$("mapReturnDialog"))]))] : []));
   showComponentIssues($("mapReturnDiagnostics"),$("mapReturnIssues"),mapReturnPlan.issues);
   $("mapReturnDiagnostics").open=!mapReturnPlan.ready;
-  $("returnReconnect").hidden=!workspace.componentSource || Boolean(validConnectedFolder());
+  $("returnReconnect").hidden=!workspace.componentSource;
   $("downloadMapReturn").disabled=!mapReturnPlan.ready;
   $("mapReturnDialog").showModal();
 }
 function installMapFolderFlow() {
   const dialog=$("mapFolderDialog");
-  $("openMapFolder").onclick=openMapFolder;
+  $("openMapFolder").onclick=()=>openMapFolder();
   $("openMapReturn").onclick=$("exportMapPackage").onclick=openMapReturn;
   dialog.addEventListener("close",()=>{if (!dialog.open) mapFolderRequest++;});
   $("pickMapFolder").onclick=()=>$("mapFolderInput").click();
@@ -4323,10 +4619,12 @@ function installMapFolderFlow() {
     refreshMapFolder();
     $("mapFolderStatus").textContent="正在读取地图文件夹…";
     try {
-      const folder=await scanComponentFolder(files);
+      const reconnecting=mapFolderMode==="reconnect";
+      const folder=await scanComponentFolder(files,{assetsOnly:reconnecting});
       if (token!==mapFolderRequest || !dialog.open) return;
       pendingMapFolder=folder;
-      drawMapFolder(folder);
+      if (reconnecting) refreshMapFolder(folder);
+      else drawMapFolder(folder);
     } catch (error) {
       if (token===mapFolderRequest) $("mapFolderStatus").textContent=error.message;
     }
@@ -4334,7 +4632,7 @@ function installMapFolderFlow() {
   $("compiledMapScriptInput").onchange=async (event)=>{
     const file=event.target.files[0];
     event.target.value="";
-    if (!file || !pendingMapFolder) return;
+    if (!file || !pendingMapFolder || mapFolderMode!=="import") return;
     const token=++mapFolderRequest;
     const folder={...pendingMapFolder};
     $("applyMapFolder").disabled=true;
@@ -4352,13 +4650,14 @@ function installMapFolderFlow() {
     }
   };
   $("mapFolderLanguage").onchange=()=>{
+    if (!pendingMapFolder || mapFolderMode!=="import") return;
     $("mapFolderFont").value=componentFontChoice(pendingMapFolder,$("mapFolderLanguage").value);
     refreshMapFunctions(pendingMapFolder);
     refreshMapFolder();
   };
   $("applyMapFolder").onclick=async ()=>{
     const folder=pendingMapFolder;
-    if (!folder) return;
+    if (!folder || mapFolderMode!=="import") return;
     const token=++mapFolderRequest;
     const locale=$("mapFolderLanguage").value;
     $("applyMapFolder").disabled=true;
@@ -4366,12 +4665,15 @@ function installMapFolderFlow() {
     try {
       const loaded=await componentProject(folder,$("mapFolderFunction").value,locale,$("mapFolderFont").value,model.screen);
       if (token!==mapFolderRequest || !dialog.open) return;
-      const images=attachComponentImages(folder,locale);
-      replaceProject(loaded.project,loaded.active);
+      const kept=await stashShelfProject();
+      if (token!==mapFolderRequest || !dialog.open) return;
+      mapConnections.set(folder.signature+"\n"+locale,{folder,locale});
+      loaded.project.projectName=localProjectName(folder.name.replace(/\.SC2(?:Map|Components)$/i,""));
+      restoreShelfProject({...loaded.project,activeDialog:loaded.active},null,null,"draft:"+createShelfId());
       dialog.close();
       const issues=[...loaded.issues,...folder.issues];
-      notify("已打开 "+loaded.project.dialogs.length+" 张对话框，匹配 "+images+" 张本地贴图。"+(issues[0] || ""));
-      previewComponentFonts(folder,locale,folder.signature);
+      const retained=kept ? "原项目已保留在项目管理中。" : "原草稿保留在当前会话，请在项目管理中保存为文件。";
+      notify("已打开 "+loaded.project.dialogs.length+" 张对话框。"+retained+(issues[0] || ""));
     } catch (error) {
       if (token!==mapFolderRequest) return;
       refreshMapFolder();
@@ -4381,14 +4683,17 @@ function installMapFolderFlow() {
   $("reconnectMapFolder").onclick=()=>{
     const metadata=workspace.componentSource;
     const folder=pendingMapFolder;
-    if (!metadata || metadata.signature!==folder?.signature) return;
-    attachComponentImages(folder,metadata.locale);
-    render();
+    if (!metadata || !folder) return;
+    const updated=metadata.signature!==folder.signature;
+    if (updated && (mapFolderMode!=="reconnect" || metadata.name!==folder.name)) return;
+    mapConnections.set(folder.signature+"\n"+metadata.locale,{folder,locale:metadata.locale});
+    if (updated) mutate(()=>{metadata.signature=folder.signature;});
+    else render();
     dialog.close();
     notify("已重新连接地图的文本和素材。");
-    previewComponentFonts(folder,metadata.locale,folder.signature);
+    if (mapFolderMode==="reconnect") openMapReturn();
   };
-  $("returnReconnect").onclick=()=>{$("mapReturnDialog").close();openMapFolder();};
+  $("returnReconnect").onclick=()=>{$("mapReturnDialog").close();openMapFolder("reconnect");};
   $("mapReturnDialog").addEventListener("close",()=>{
     if (!$("mapReturnDialog").open) mapReturnRequest++;
   });
@@ -4434,6 +4739,269 @@ function readCanvasImages(value) {
     return {path,format,data:payload};
   });
 }
+const controlStyleGroups={
+  font:{label:"字体、颜色与排版",keys:["style","color","previewFont","previewAlign","previewBold","previewGlow","writeoutMs"]},
+  appearance:{label:"贴图与外观",keys:["path","hover","imageMode","tint","opacity","blend","tiled","rotation","desaturate","buttonFrame","buttonStates","background"]},
+  size:{label:"宽度与高度",keys:["w","h"]},
+  position:{label:"位置（X/Y 偏移）",keys:["x","y"]},
+  anchor:{label:"自身锚点与目标锚点",keys:["anchor","attachAnchor"]},
+  layout:{label:"铺满与 SC2Layout 模板",keys:["full","template"]},
+  expression:{label:"表达式格式与行内图尺寸",keys:[]}
+};
+const defaultControlStyleGroups=["font","appearance"];
+const maxControlStyles=40;
+const controlStyleKeys=Object.values(controlStyleGroups).flatMap(({keys})=>keys);
+let controlBrush=null;
+
+function styleFields(item,keys) {
+  return Object.fromEntries(keys.filter((key)=>Object.hasOwn(item,key)).map((key)=>[key,item[key]]));
+}
+function uniformTextMarks(item) {
+  const expression=activeTextExpression(item);
+  if (!expression && (!item.richText || item.textKey)) return {};
+  const colors=new Set(), styles=new Set();
+  function visit(tokens,color="",style="") {
+    for (const token of tokens) {
+      if (token.kind==="text" && token.val.trim()) {
+        colors.add(color);
+        styles.add(style);
+      }
+      if (token.children) visit(token.children,
+        token.kind==="c" && token.closed ? token.val : color,
+        token.kind==="s" && token.closed ? token.val : style);
+    }
+  }
+  visit(parseRichText(expression?.template || item.text || ""));
+  return {c:colors.size===1 ? [...colors][0] : "",s:styles.size===1 ? [...styles][0] : ""};
+}
+function captureControlStyle(item) {
+  const type=item.type || "dialog";
+  const fields=styleFields(item,controlStyleKeys);
+  if (!textKinds.has(type)) return {type,fields};
+  const marks=uniformTextMarks(item);
+  fields.style=marks.s || fields.style;
+  fields.color=formatColor(sc2Color(marks.c) || "") || fields.color;
+  const expression=activeTextExpression(item);
+  if (!expression) return {type,fields};
+  const images=textInlineImages(expression.template).map(({image:{width,height,alignment}})=>({width,height,alignment}));
+  return {type,fields,expression:{marks,images}};
+}
+function availableControlStyles(preset,item) {
+  const type=item.type || "dialog";
+  const same=preset.type===type;
+  if ((type==="dialog")!==(preset.type==="dialog")) return [];
+  return Object.keys(controlStyleGroups).filter((key)=>{
+    if (key==="font") return textKinds.has(type) && textKinds.has(preset.type);
+    if (key==="appearance") return same && (type==="dialog" || imageKinds.has(type));
+    if (key==="expression") return Boolean(preset.expression && activeTextExpression(item) &&
+      (preset.expression.marks.c || preset.expression.marks.s || preset.expression.images.length));
+    return true;
+  });
+}
+function readControlStyles(value) {
+  if (!Array.isArray(value)) return [];
+  const used=new Set();
+  return value.slice(0,maxControlStyles).flatMap((entry)=>{
+    if (!entry || !(entry.type==="dialog" || Object.hasOwn(kinds,entry.type))) return [];
+    const name=string(entry.name,60).trim();
+    const id=string(entry.id,60);
+    if (!name || !id || used.has(id)) return [];
+    const sample=createProject();
+    const fields=styleFields(entry.fields || {},controlStyleKeys);
+    if (entry.type==="dialog") Object.assign(sample.root,fields);
+    else sample.nodes=[{...makeNode(entry.type,1),...fields}];
+    const {root,nodes}=readProject(sample);
+    const groups=Array.isArray(entry.groups) ? Object.keys(controlStyleGroups).filter((key)=>entry.groups.includes(key)) : [];
+    if (!groups.length) return [];
+    const preset={id,name,type:entry.type,fields:styleFields(nodes[0] || root,controlStyleKeys),groups};
+    const expression=entry.expression;
+    if (textKinds.has(entry.type) && expression) {
+      const color=string(expression.marks?.c,50), style=string(expression.marks?.s,100);
+      const marks={
+        c:/^(?:[0-9a-f]{6}(?:[0-9a-f]{2})?|\d{1,3}(?:\s*,\s*\d{1,3}){2,3}|#[\w.-]+)$/i.test(color) ? color : "",
+        s:style
+      };
+      const images=Array.isArray(expression.images) ? expression.images.slice(0,64).map((image)=>({
+        width:number(image?.width,0,9999,0),height:number(image?.height,0,9999,0),
+        alignment:textImageAlignment(string(image?.alignment,20)) || ""
+      })) : [];
+      preset.expression={marks,images};
+    }
+    used.add(id);
+    return [preset];
+  });
+}
+function styledExpression(template,{marks,images}) {
+  let index=0;
+  let result=template.replace(/<img\b[^<>]*\/>/gi,(tag)=>{
+    const image=inlineTextImage(tag);
+    if (!image) return tag;
+    const format=images[index++];
+    return format ? serializeTextImage({...image,...format}) : tag;
+  });
+  if (marks.c || marks.s) {
+    function strip(tokens) {
+      return tokens.flatMap((token)=>{
+        if (!token.children) return [token];
+        const children=strip(token.children);
+        return token.closed && marks[token.kind] ? children : [{...token,children}];
+      });
+    }
+    let tokens=strip(parseRichText(result));
+    for (const kind of ["c","s"]) if (marks[kind]) tokens=[{kind,val:marks[kind],closed:true,children:tokens}];
+    result=encodeRichText(tokens);
+  }
+  return result.length<=maxControlText ? result : template;
+}
+function applyStylePreset(preset,groups,targets) {
+  const changes=[];
+  for (const item of targets) {
+    if (isLayerLocked(item)) continue;
+    const available=availableControlStyles(preset,item);
+    const enabled=groups.filter((key)=>available.includes(key));
+    if (!enabled.length) continue;
+    const patch={};
+    for (const key of enabled) Object.assign(patch,styleFields(preset.fields,controlStyleGroups[key].keys));
+    if (item.type!==preset.type) delete patch.template;
+    if (item.attachId || item.relativeDialog) delete patch.full;
+    if (enabled.includes("expression")) {
+      const expression=item.textExpression;
+      const template=styledExpression(expression.template,preset.expression);
+      if (template!==expression.template) patch.textExpression={...expression,template};
+    }
+    if (Object.entries(patch).every(([key,value])=>item[key]===value)) continue;
+    const keepPosition=!enabled.includes("position") && enabled.some((key)=>["anchor","size","layout"].includes(key));
+    changes.push({item,patch,point:keepPosition ? bounds.get(item.id) : null});
+  }
+  if (!changes.length) return 0;
+  mutate(()=>{
+    const points=new Map();
+    for (const {item,patch,point} of changes) {
+      Object.assign(item,patch);
+      if (point && !item.full) points.set(item.id,point);
+    }
+    if (!points.size) return;
+    if (points.has(0)) {
+      const {x,y}=points.get(0);
+      setCanvasPosition(model.root,x,y);
+    }
+    const root=dialogBounds(model.screen).get(activeDialog);
+    const positions=new Map([[0,{...root,item:model.root}]]);
+    for (const node of layoutOrder(model)) {
+      const point=points.get(node.id);
+      if (point) setCanvasPosition(node,point.x,point.y,positions);
+      positions.set(node.id,resolveControlRect(node,positions));
+    }
+  });
+  return changes.length;
+}
+function styleTargets() {
+  const ids=selectedControlIds();
+  return ids.length ? model.nodes.filter(({id})=>ids.includes(id)) : [model.root];
+}
+function updateControlStyleTools() {
+  if (preview || controlBrush?.project!==workspace) controlBrush=null;
+  $("openControlStyles").disabled=preview;
+  $("controlStyleBrush").disabled=preview || !current();
+  $("controlStyleBrush").setAttribute("aria-pressed",String(Boolean(controlBrush)));
+  $("surface").toggleAttribute("data-style-brush",Boolean(controlBrush));
+}
+function stopControlBrush() {
+  controlBrush=null;
+  updateControlStyleTools();
+}
+function startControlBrush(preset,groups,source=null) {
+  controlBrush={project:workspace,preset,groups,source};
+  updateControlStyleTools();
+  notify("格式刷已就绪。点击目标控件，或按 Esc 取消。");
+}
+function paintControlStyle(dialogId,id) {
+  const operation=controlBrush;
+  const layout=workspace.dialogs.find((doc)=>doc.id===dialogId)?.layout;
+  const item=id ? layout?.nodes.find((node)=>node.id===id) : layout?.root;
+  if (!operation || !item || operation.source===item) return;
+  if (!availableControlStyles(operation.preset,item).some((key)=>operation.groups.includes(key))) {
+    return notify("此图层没有可应用的样式属性。请选择兼容的目标。");
+  }
+  if (dialogId!==activeDialog || selected!==id || multiSelection) selectDialog(dialogId,id);
+  if (isLayerLocked(item)) return notify("目标图层已锁定。");
+  stopControlBrush();
+  const count=applyStylePreset(operation.preset,operation.groups,[item]);
+  notify(count ? "已应用格式到「"+item.name+"」。" : "目标已使用相同格式。");
+}
+function openControlStyles() {
+  const dialog=$("controlStylesDialog");
+  const item=current();
+  const source=$("controlStyleSource");
+  const presets=workspace.controlStyles || [];
+  source.replaceChildren(...[["","当前图层 · "+item.name],...presets.map(({id,name})=>[id,name])].map(([value,label])=>{
+    const option=el("option","",label);
+    option.value=value;
+    return option;
+  }));
+  source.value=presets.length ? presets.at(-1).id : "";
+  $("controlStyleName").value=item.name.slice(0,60);
+  const status=$("controlStyleStatus");
+  function renderChoices() {
+    const saved=presets.find(({id})=>id===source.value);
+    const preset=saved || captureControlStyle(item);
+    const supported=saved ? [...new Set(styleTargets().flatMap((node)=>availableControlStyles(preset,node)))] :
+      availableControlStyles(preset,item);
+    const offered=saved ? saved.groups : supported;
+    const initial=saved ? saved.groups : defaultControlStyleGroups;
+    const settings=new Map();
+    $("controlStyleNameField").hidden=Boolean(saved);
+    $("saveControlStyle").hidden=Boolean(saved);
+    $("applyControlStyle").hidden=!saved;
+    const groups=()=>[...settings].filter(([,input])=>input.checked).map(([key])=>key);
+    function updateButtons() {
+      $("saveControlStyle").disabled=!groups().length;
+      $("applyControlStyle").disabled=!groups().some((key)=>supported.includes(key));
+      $("brushControlStyle").disabled=!groups().length;
+    }
+    $("controlStyleOptions").replaceChildren(...offered.map((key)=>{
+      const control=checkbox(controlStyleGroups[key].label,initial.includes(key),updateButtons);
+      settings.set(key,control.firstChild);
+      return control;
+    }));
+    status.textContent="";
+    updateButtons();
+    $("saveControlStyle").onclick=()=>{
+      const name=$("controlStyleName").value.trim();
+      if (!name) return status.textContent="请输入样式名称。";
+      if (presets.some((entry)=>entry.name===name)) return status.textContent="已有同名样式，请换一个名称。";
+      if (presets.length>=maxControlStyles) return status.textContent="此项目最多可保存 "+maxControlStyles+" 个样式。";
+      mutate(()=>{workspace.controlStyles=[...presets,{...preset,id:createShelfId(),name,groups:groups()}];});
+      dialog.close();
+      notify("已保存样式「"+name+"」。");
+    };
+    $("applyControlStyle").onclick=()=>{
+      const count=applyStylePreset(preset,groups(),styleTargets());
+      dialog.close();
+      notify(count ? "已为 "+count+" 个图层应用「"+saved.name+"」。" : "选中图层的格式相同或已锁定。");
+    };
+    $("brushControlStyle").onclick=()=>{
+      dialog.close();
+      startControlBrush(preset,groups(),saved ? null : item);
+    };
+  }
+  source.onchange=renderChoices;
+  renderChoices();
+  dialog.showModal();
+}
+function installControlStyles() {
+  $("openControlStyles").onclick=openControlStyles;
+  $("controlStyleBrush").onclick=()=>{
+    if (controlBrush) return stopControlBrush();
+    const item=current();
+    const preset=captureControlStyle(item);
+    const available=availableControlStyles(preset,item);
+    const groups=defaultControlStyleGroups.filter((key)=>available.includes(key));
+    if (groups.length) startControlBrush(preset,groups,item);
+    else openControlStyles();
+  };
+}
+
 function readWorkspace(data) {
   const projectName=typeof data?.projectName==="string" ? string(data.projectName.trim(),80) : "";
   if (data?.version !== 4) {
@@ -4453,6 +5021,7 @@ function readWorkspace(data) {
   });
   dialogOrder(dialogs);
   const canvasImages = readCanvasImages(data.canvasImages);
+  const controlStyles = readControlStyles(data.controlStyles);
   let fontStyles = typeof data.fontStyles === "string" ? data.fontStyles : "";
   if (fontStyles) {
     try {
@@ -4463,6 +5032,7 @@ function readWorkspace(data) {
     }
   }
   return {version:4,dialogs,...(canvasImages.length ? {canvasImages} : {}),
+    ...(controlStyles.length ? {controlStyles} : {}),
     ...(projectName ? {projectName} : {}),
     ...(fontStyles ? {fontStyles} : {}),layoutSources:readLayoutSources(data.layoutSources),skins:cleanSkins(data.skins),
     skinProfile:Object.hasOwn(skinProfiles,data.skinProfile) ? data.skinProfile : initialSkinProfile,
@@ -4738,6 +5308,7 @@ function changeDialogAttachment(target) {
 let model = createProject();
 let workspace = singleWorkspace(model), activeDialog = 1, selected = 0;
 let projectFile=null, projectSavedData=null;
+let currentScratchKey="draft:"+createShelfId();
 let playerView = null;
 let projectPositions = new Map();
 try {
@@ -4745,7 +5316,11 @@ try {
   if (cached) {
     const saved=JSON.parse(cached);
     restoreDraft(saved,true);
-    if (saved.projectFile?.directory && saved.projectFile?.name) projectFile=saved.projectFile;
+    if (typeof saved.scratchKey==="string" && saved.scratchKey.startsWith("draft:")) currentScratchKey=saved.scratchKey;
+    if (saved.projectFile?.directory && saved.projectFile?.name) {
+      projectFile=saved.projectFile;
+      if (projectFile.dirty===false) projectSavedData=projectContentKey();
+    }
   }
 } catch (error) {
   console.warn("Cannot restore local draft",error);
@@ -4775,7 +5350,8 @@ function restoreHistory(snapshot) {
 }
 function saveDraft() {
   try {
-    localStorage.setItem(STORE_KEY,JSON.stringify({project:workspaceFile(),activeDialog,selected,projectFile}));
+    if (projectFile) projectFile.dirty=projectSavedData!==projectContentKey();
+    localStorage.setItem(STORE_KEY,JSON.stringify({project:workspaceFile(),activeDialog,selected,projectFile,scratchKey:currentScratchKey}));
     $("saveStatus").lastChild.textContent = "已自动保存";
     $("saveStatus").removeAttribute("title");
   } catch (error) {
@@ -5107,12 +5683,25 @@ function textPreview(node,style) {
   if (node.previewBold) text.style.fontWeight = "760";
   if (node.previewAlign) text.style.textAlign = node.previewAlign;
   if (node.previewGlow) text.style.textShadow = "0 1px 3px #006afa, 0 0 5px #4fa3ff";
-  if (!node.text && node.textKey) {
-    text.textContent = "〈地图文本〉";
-    text.classList.add("localization-placeholder");
-    text.title = node.textKey;
-  } else appendRichText(text,parseRichText(node.text,node.richText));
+  renderControlText(text,node);
   return text;
+}
+function renderControlText(text,node) {
+  const localized=!activeTextExpression(node) && !node.text && Boolean(node.textKey);
+  text.replaceChildren();
+  text.classList.toggle("localization-placeholder",localized);
+  if (localized) {
+    text.textContent = "〈地图文本〉";
+    text.title = node.textKey;
+  } else {
+    text.removeAttribute("title");
+    appendRichText(text,controlPreviewTextTokens(node));
+  }
+}
+function updateCanvasControlText(item,state) {
+  if (!model.nodes.includes(item)) return;
+  const text=$("surface").querySelector(`[data-active-dialog] [data-node="${item.id}"] > .ctrl-face > .ctrl-text`);
+  if (text) renderControlText(text,viewedItem(state,preview ? playerView : null));
 }
 function alignTextPreview(face,node,style) {
   const fallback = /Right/i.test(node.style) ? "right" : /Center/i.test(node.style) || node.type === "button" ? "center" : "left";
@@ -6255,7 +6844,10 @@ function viewedItem(item,view,node = item) {
     for (const key of overrideFields(node)) {
       if (Object.hasOwn(override,key)) result[key] = key === "value" ? number(override.value,item.min,item.max,item.value) : override[key];
     }
-    if (Object.hasOwn(override,"text")) result.textKey = override.textKey || "";
+    if (Object.hasOwn(override,"text")) {
+      result.textKey = override.textKey || "";
+      result.textMode = "value";
+    }
   }
   if (!node && !hasPlayerInstance(item,view)) result.visible = false;
   if (result.unitLink !== item.unitLink) result.modelPreview = "";
@@ -6445,7 +7037,8 @@ function dialogFrame(id,layout,placement,positions,tree,{view=null,previewMode=f
   function draw(parent,group) {
     const nodeFrames = [];
     for (const base of tree.get(group) || []) {
-      const node = viewedItem(base,view);
+      const draft=active && expressionCanvasDraft?.item===base ? expressionCanvasDraft.state : base;
+      const node = viewedItem(draft,view);
       if (previewMode && !node.visible) continue;
       const abs = positions.get(node.id);
       const rect = {x:abs.x-parent.x,y:abs.y-parent.y,w:abs.w,h:abs.h};
@@ -6754,7 +7347,8 @@ function renderLayers(groups) {
       layer = button("",(event) => {
         if (event.target.closest("[data-fold]") && layer.hasAttribute("aria-expanded")) {
           setLayerFold(node.id,layer.getAttribute("aria-expanded")==="true");
-        } else if (event.shiftKey || event.ctrlKey || event.metaKey) toggleControlSelection(node.id);
+        } else if (controlBrush) paintControlStyle(activeDialog,node.id);
+        else if (event.shiftKey || event.ctrlKey || event.metaKey) toggleControlSelection(node.id);
         else setSelected(node.id);
       },"layer");
       layer.dataset.layer = String(node.id);
@@ -7136,6 +7730,159 @@ function focusInspectorField(id) {
   field.focus();
   return true;
 }
+function openTextExpression(item) {
+  const dialog=$("textExpressionDialog"), input=$("expressionTemplate");
+  const template=item.textExpression || {template:item.text || "~A~",tokens:[]};
+  const tokens=new Map(template.tokens.map((token)=>[token.key,{...token}]));
+  input.maxLength=maxControlText;
+  input.value=template.template;
+  const getKeys=()=>expressionSlotKeys(input.value);
+  function draftExpression() {
+    return cleanTextExpression({template:input.value,tokens:getKeys().map((key)=>tokens.get(key)).filter(Boolean)});
+  }
+  function renderPreview() {
+    const expression=draftExpression(), preview=$("expressionPreview");
+    const state={...item,textMode:"expression",textExpression:expression};
+    preview.style.color=item.color || "";
+    preview.replaceChildren();
+    appendRichText(preview,controlPreviewTextTokens(state));
+    const missing=[...new Set(textImagePaths(expression.template).filter((path)=>!inlineImageAsset(path)).map(pathName))];
+    const imageStatus=$("expressionImageStatus");
+    imageStatus.hidden=!missing.length;
+    imageStatus.textContent=missing.length ? "贴图库中缺少预览文件。可在「插入贴图 → 导入文件」载入 "+missing.join("、")+"。" : "";
+    expressionCanvasDraft={item,state};
+    updateCanvasControlText(item,state);
+    const {errors}=expressionFields(expression,model.root);
+    $("expressionStatus").textContent=errors[0] || "";
+    return errors;
+  }
+  function renderFields() {
+    const wrap=$("expressionTokens");
+    wrap.replaceChildren();
+    for (const [index,key] of getKeys().slice(0,expressionSlotLimit).entries()) {
+      const token=tokens.get(key) || {key,type:"int",ref:"",sample:""};
+      tokens.set(key,token);
+      const reference=textField("Galaxy 变量路径","expressionRef"+index,token.ref,()=>{},{max:maxBindingLength,
+        placeholder:model.root.perPlayer ? "gv_UI.Minerals[player]" : "gv_UI.Minerals[1]"});
+      const sample=textField("预览值","expressionSample"+index,token.sample,()=>{},{max:120,
+        placeholder:expressionSamples[token.type] || "~"+key+"~"});
+      const type=selectField("变量类型","expressionType"+index,Object.entries(expressionTypes),token.type,(value)=>{
+        token.type=value;
+        sample.querySelector("input").placeholder=expressionSamples[value] || "~"+key+"~";
+        renderPreview();
+      });
+      reference.querySelector("input").oninput=(event)=>{
+        token.ref=event.target.value;
+        renderPreview();
+      };
+      sample.querySelector("input").oninput=(event)=>{
+        token.sample=event.target.value;
+        renderPreview();
+      };
+      const group=el("fieldset","text-expression-token");
+      group.append(el("legend","","~"+key+"~"),row(type,reference,sample));
+      wrap.append(group);
+    }
+    renderImageFields();
+    renderPreview();
+  }
+  function renderImageFields() {
+    const images=textInlineImages(input.value);
+    $("expressionImages").hidden=!images.length;
+    const fields=images.map(({image},index)=>{
+      const group=el("fieldset","text-expression-token text-expression-image");
+      const update=(property,value)=>{
+        const current=textInlineImages(input.value)[index];
+        if (!current) return false;
+        const {start,end,image}=current;
+        const tag=serializeTextImage({...image,[property]:value});
+        if (input.value.length-(end-start)+tag.length>maxControlText) {
+          $("expressionStatus").textContent="模板最多 "+maxControlText+" 字符。";
+          return false;
+        }
+        input.setRangeText(tag,start,end,"preserve");
+        renderPreview();
+        return true;
+      };
+      function sizeField(property,label) {
+        const numberInput=el("input");
+        numberInput.type="number";
+        numberInput.min=1;
+        numberInput.max=9999;
+        numberInput.step=1;
+        numberInput.value=image[property] || "";
+        numberInput.defaultValue=numberInput.value;
+        numberInput.placeholder="默认";
+        function applySize(control,committed) {
+          const value=control.value;
+          if (control.validity?.badInput || (value && !/^[1-9]\d{0,3}$/.test(value))) {
+            if (committed) {
+              control.value=control.defaultValue;
+              $("expressionStatus").textContent=label+"请填 1–9999 的整数，也可留空。";
+            }
+            return;
+          }
+          if (value===control.defaultValue) return;
+          if (update(property,Number(value))) control.defaultValue=control.value;
+          else if (committed) control.value=control.defaultValue;
+        }
+        numberInput.oninput=()=>applySize(numberInput,false);
+        return field(label,"expressionImage"+property+index,numberInput,(control)=>applySize(control,true));
+      }
+      const choices=[["","游戏默认"],...Object.entries(textImageAlignments).map(([key,{label}])=>[key,label])];
+      let aligned=choices.find(([key])=>key.toLowerCase()===image.alignment.toLowerCase())?.[0];
+      if (aligned===undefined) {
+        aligned=image.alignment;
+        choices.push([aligned,aligned]);
+      }
+      const alignment=selectField("跟随文字对齐","expressionImageAlign"+index,choices,aligned,(value)=>{
+        if (update("alignment",value)) aligned=value;
+        else $("expressionImageAlign"+index).value=aligned;
+      });
+      group.title=image.path;
+      group.append(el("legend","",pathName(image.path)),row(sizeField("width","宽度"),sizeField("height","高度"),alignment));
+      return group;
+    });
+    $("expressionImageFields").replaceChildren(...fields);
+  }
+  function insert(value) {
+    if (input.value.length-(input.selectionEnd-input.selectionStart)+value.length>maxControlText) {
+      $("expressionStatus").textContent="模板最多 "+maxControlText+" 字符。";
+      return;
+    }
+    input.setRangeText(value,input.selectionStart,input.selectionEnd,"end");
+    renderFields();
+    requestAnimationFrame(()=>{ if (dialog.open) input.focus(); });
+  }
+  input.oninput=renderFields;
+  $("insertExpressionSlot").onclick=()=>{
+    const keys=new Set(getKeys());
+    if (keys.size>=expressionSlotLimit) return;
+    let index=0, key;
+    do { key=index<26 ? String.fromCharCode(65+index) : "T"+(index+1);index++; } while (keys.has(key));
+    insert("~"+key+"~");
+  };
+  $("insertExpressionImage").onclick=()=>{
+    $("assetsDialog").addEventListener("close",()=>{if (dialog.open) renderPreview();},{once:true});
+    openAssets(undefined,undefined,(path)=>insert(serializeTextImage({path})),"选择一张贴图插入文字模板。");
+  };
+  dialog.onclose=()=>{
+    if (dialog.open) return;
+    expressionCanvasDraft=null;
+    updateCanvasControlText(item,item);
+  };
+  $("applyTextExpression").onclick=()=>{
+    const expression=draftExpression();
+    if (renderPreview().length) return;
+    expressionCanvasDraft=null;
+    dialog.close();
+    mutate(()=>{item.textExpression=expression;item.textMode="expression";});
+    $("field-textExpression")?.focus();
+  };
+  renderFields();
+  dialog.showModal();
+  input.focus();
+}
 function renderInspector() {
   const item = current();
   const isRoot = item.id === 0;
@@ -7349,14 +8096,22 @@ function renderInspector() {
       "此控件随对话框为每名玩家创建一份，使用同一个玩家编号访问。" :
       "父对话框决定实例模式。可到对话框的运行属性开启独立实例。"));
     if (textKinds.has(item.type)) {
+      const isExpression = item.textMode === "expression";
+      const source = selectField("文字来源","field-textMode",[["value","固定文字／本地化"],["expression","表达式"]],
+        isExpression ? "expression" : "value",(value) => {
+          if (value==="expression") {
+            $("field-textMode").value="value";
+            openTextExpression(item);
+          } else mutate(()=>{delete item.textMode;});
+        });
+      const expression = button("编辑表达式",()=>openTextExpression(item));
+      expression.id="field-textExpression";
+      expression.hidden=!isExpression;
       const textFieldWrapper = textField(item.textKey && workspace.componentSource ? "本地化显示文字" : "显示文字 / 画布预览","field-text",item.text,
         (value) => update("text",value),{max:800,multiline:true});
+      textFieldWrapper.hidden=isExpression;
       textFieldWrapper.querySelector("textarea").addEventListener("input",(event) => {
-        const text = $("surface").querySelector(`[data-active-dialog] [data-node="${item.id}"] > .ctrl-face > .ctrl-text`);
-        if (!text) return;
-        const state = viewedItem({...item,text:event.target.value},preview ? playerView : null);
-        text.replaceChildren();
-        appendRichText(text,parseRichText(state.text,item.richText));
+        updateCanvasControlText(item,{...item,text:event.target.value});
       });
       if (item.textKey && workspace.componentSource) textFieldWrapper.append(el("small","faint",
         "当前语言："+(workspace.componentSource.locale || "共用")+"。修改文字后使用「地图回导包」更新地图译文。"));
@@ -7364,13 +8119,18 @@ function renderInspector() {
       chooser.setAttribute("aria-haspopup","dialog");
       chooser.append(el("span","",item.style || "游戏默认"),icon("chevron"));
       const style = field("字体样式","field-style",chooser,() => {});
+      const localization = textField("本地化文本键（优先）","field-textKey",item.textKey,(value) => {
+        update("textKey",value.trim()); return item.textKey;
+      },{max:200,placeholder:"Trig/Title"});
+      localization.hidden=isExpression;
+      const richTextToggle=checkbox("解析 SC2 富文本",item.richText,(value) => update("richText",value),
+        "渲染颜色 <c>、字体样式 <s>、内嵌贴图 <img/> 与换行 <n/>。关闭后原样显示标签。");
+      richTextToggle.hidden=isExpression;
       sections.appearance.push(section("文字",
-        textFieldWrapper,style,propertyColor("文字颜色","color","#e7dff7")),
+        source,expression,textFieldWrapper,style,propertyColor("文字颜色","color","#e7dff7")),
         inspectorGroup("advancedText","更多文字设置",
-          checkbox("解析 SC2 富文本",item.richText,(value) => update("richText",value),"渲染颜色 <c>、字体样式 <s> 与换行 <n/>。关闭后原样显示标签。"),
-          textField("本地化文本键（优先）","field-textKey",item.textKey,(value) => {
-            update("textKey",value.trim()); return item.textKey;
-          },{max:200,placeholder:"Trig/Title"}),
+          richTextToggle,
+          localization,
           numberField("逐字出现时长（毫秒）","field-writeoutMs",item.writeoutMs,0,30000,(value) => update("writeoutMs",value))));
       if (model.recipe === "lobbyVote") {
         sections.appearance.push(inspectorGroup("textPreviewLayout","预览排版",row(
@@ -7532,6 +8292,7 @@ function syncGeometryFields(item) {
 }
 function render(fullInspector = true) {
   $("overlapMenu").hidden=true;
+  syncMapConnection();
   syncCanvasImageCatalog();
   const groups = childrenByParent();
   setSurfaceSize();
@@ -7582,6 +8343,15 @@ function addAsset(path,source,prefer = false) {
   if (previous?.source && !previous.source.embedded && !previous.source.browserThumbnail && !prefer &&
       fileRank(previous.source.name) > fileRank(source?.name)) return;
   catalog.set(key,{...previous,path:clean,name:pathName(clean),source});
+}
+function clearCanvasImageCatalog() {
+  for (const [key,{entry,previous}] of canvasImageEntries) {
+    if (catalog.get(key)!==entry) continue;
+    if (previous) catalog.set(key,previous);
+    else catalog.delete(key);
+  }
+  canvasImageEntries.clear();
+  registeredCanvasImages=null;
 }
 function syncCanvasImageCatalog() {
   const images = workspace.canvasImages;
@@ -7789,6 +8559,7 @@ function copiedFontStyles(nodes) {
     }
   }
   for (const node of nodes) {
+    if (node.textExpression?.template) readStyleTokens(parseRichText(node.textExpression.template));
     for (const text of [node.text,node.tooltip,...(node.variants || []).map((item)=>item.text)]) {
       if (text) readStyleTokens(parseRichText(text,node.richText!==false));
     }
@@ -7809,6 +8580,13 @@ function transferAssets(nodes,includeSkins) {
   const assets=new Set([...nodes,...styledSkins].flatMap(({path,hover,modelPreview,variants})=>
     [path,hover,modelPreview,...(variants || []).flatMap((value)=>[value.path,value.hover])]
   ).filter(Boolean).map(assetKey));
+  for (const node of nodes) {
+    for (const path of textImagePaths(node.textExpression?.template)) assets.add(assetKey(path));
+    if (node.richText===false) continue;
+    for (const text of [node.text,node.tooltip,...(node.variants || []).map((item)=>item.text)]) {
+      for (const path of textImagePaths(text)) assets.add(assetKey(path));
+    }
+  }
   const frames=new Set(nodes.map(controlTemplate).filter(Boolean));
   const sources=(workspace.layoutSources || []).map(({path,xml})=>layoutSourceInfo(path,xml));
   const layouts=sources.filter((source)=>source.frames.some(({id})=>frames.has(id)));
@@ -7897,6 +8675,13 @@ function transferredResources(transfer,nodes,includeSkins=false) {
     for (const key of ["path","hover","modelPreview"]) {
       if (node[key] && paths.has(assetKey(node[key]))) node[key]=paths.get(assetKey(node[key]));
     }
+    const remapText=(value)=>value.replace(/<img\b[^<>]*\/>/gi,(tag)=>{
+      const image=inlineTextImage(tag);
+      const path=image && paths.get(assetKey(image.path));
+      return path && path!==image.path ? serializeTextImage({...image,path}) : tag;
+    });
+    if (node.richText!==false) for (const key of ["text","tooltip"]) if (node[key]) node[key]=remapText(node[key]);
+    if (node.textExpression?.template) node.textExpression={...node.textExpression,template:remapText(node.textExpression.template)};
   };
   for (const node of nodes) {
     remap(node);
@@ -8112,9 +8897,11 @@ function installLayoutTemplates() {
 const projectShelfPageSize=6;
 let projectConnection=null, projectDirectoryAvailable=false, projectShelfBusy=false, projectShelfPage=0;
 let projectIndex=[], projectShelfChecked=false, projectShelfNeedsPermission=false;
-let projectFavoritesOnly=false, projectRenameTarget=null, projectSceneRequest=0;
-let currentScratchKey="draft:"+createShelfId();
+let projectFavoritesOnly=false, projectRenameTarget=null, projectDeleteTarget=null, projectSceneRequest=0;
+let shelfDraftsLoad=null;
 const projectShelfDrafts=new Map();
+const storedShelfDrafts=new Set();
+const shelfDraftStore="project-drafts";
 const projectFlagsKey=STORE_KEY+"-project-flags";
 const projectFlags=new Map();
 try {
@@ -8153,11 +8940,48 @@ function draftProjectKey(file) {
 function serializableProject() {
   return JSON.stringify(workspaceFile());
 }
-function stashShelfProject() {
+function projectContentKey(project=workspace) {
+  const {activeDialog,...content}=project;
+  return JSON.stringify(content);
+}
+function restoreShelfDrafts() {
+  shelfDraftsLoad ??= assetFolderTransaction("readonly",(store)=>store.getAll(),shelfDraftStore).then((records)=>{
+    for (const {key,data,file} of records) {
+      if (typeof key!=="string" || typeof data!=="string") continue;
+      try {
+        const parsed=JSON.parse(data);
+        if (!Array.isArray(parsed.dialogs) || !parsed.dialogs.length || parsed.dialogs.length>MAX_DIALOGS) continue;
+        if (!projectShelfDrafts.has(key)) projectShelfDrafts.set(key,{data,file});
+        storedShelfDrafts.add(key);
+      } catch {}
+    }
+  }).catch(()=>{shelfDraftsLoad=null;});
+  return shelfDraftsLoad;
+}
+async function setShelfDraft(key,record) {
+  if (!record && !storedShelfDrafts.has(key)) {
+    projectShelfDrafts.delete(key);
+    return true;
+  }
+  try {
+    await assetFolderTransaction("readwrite",(store)=>record ? store.put({key,...record}) : store.delete(key),shelfDraftStore);
+    if (record) storedShelfDrafts.add(key);
+    else storedShelfDrafts.delete(key);
+  } catch {
+    return false;
+  }
+  if (record) projectShelfDrafts.set(key,record);
+  else projectShelfDrafts.delete(key);
+  return true;
+}
+async function stashShelfProject() {
+  await restoreShelfDrafts();
   const data=serializableProject();
   const key=draftProjectKey(projectFile);
-  if (data===projectSavedData) projectShelfDrafts.delete(key);
-  else projectShelfDrafts.set(key,{data,file:projectFile});
+  const record=projectFile && projectSavedData===projectContentKey() ? null : {data,file:projectFile};
+  const kept=await setShelfDraft(key,record);
+  if (!kept && record) projectShelfDrafts.set(key,record);
+  return kept;
 }
 function restoreShelfProject(source,file=null,savedData=null,scratchKey=currentScratchKey) {
   const loaded=readWorkspace(source);
@@ -8168,6 +8992,7 @@ function restoreShelfProject(source,file=null,savedData=null,scratchKey=currentS
   $("redo").disabled=true;
   currentScratchKey=scratchKey;
   setProjectFile(file,savedData);
+  $("projectFileName").value=file ? localProjectName(file.name) : workspace.projectName || "";
   saveDraft();
   renderProjectShelf();
 }
@@ -8211,19 +9036,20 @@ async function scanProjectDirectory(handle) {
   return results.sort((a,b)=>b.modified-a.modified || a.name.localeCompare(b.name,"zh-CN"));
 }
 function updateProjectShelfControls() {
-  const active=activeIndexedProject();
   $("authorizeProjectDirectory").hidden=!projectShelfNeedsPermission;
   $("chooseProjectDirectory").disabled=projectShelfBusy;
   $("authorizeProjectDirectory").disabled=projectShelfBusy;
   $("refreshProjects").disabled=projectShelfBusy || !projectDirectoryAvailable;
-  $("saveShelfProject").disabled=projectShelfBusy || !projectDirectoryAvailable || !active;
-  $("saveNewShelfProject").disabled=projectShelfBusy || !projectDirectoryAvailable;
+  $("saveShelfProject").disabled=projectShelfBusy;
+  $("saveNewShelfProject").disabled=projectShelfBusy;
   $("newShelfProject").disabled=projectShelfBusy;
   $("copyProjectControls").disabled=!selectedControlIds().length;
   $("filterFavoriteProjects").setAttribute("aria-pressed",String(projectFavoritesOnly));
+  const state=$("projectList").querySelector('[aria-current="true"] .project-file-state');
+  if (state && projectFile) state.textContent=projectFile.dirty ? "有未保存修改" : "已保存 · "+workspace.dialogs.length+" 张对话框";
 }
 function makeProjectCard(item) {
-  const {key,name,count,selected,temporary,load,open}=item;
+  const {key,name,count,selected,temporary,entry,load,open}=item;
   const card=el("article","project-card");
   card.dataset.projectKey=key;
   card.setAttribute("aria-current",String(selected));
@@ -8231,7 +9057,8 @@ function makeProjectCard(item) {
   main.setAttribute("aria-label","打开项目 "+name);
   const thumb=el("span","scene-thumb");
   thumb.setAttribute("aria-hidden","true");
-  main.append(thumb,el("strong","",name),el("small","",temporary ? "未保存草稿" : count+" 张对话框"));
+  const status=entry ? (temporary ? "有未保存修改" : "已保存 · "+count+" 张对话框") : "草稿 · 尚未保存为文件";
+  main.append(thumb,el("strong","",name),el("small",entry ? "project-file-state" : "",status));
   const actions=el("div","project-card-actions");
   const flags=projectFlags.get(key);
   for (const [property,on,off] of [["favorite","取消收藏","收藏"],["pinned","取消置顶","置顶"]]) {
@@ -8240,6 +9067,7 @@ function makeProjectCard(item) {
     actions.append(control);
   }
   actions.append(button("大图",()=>openProjectScene(item),"quiet"),button("重命名",()=>openProjectRename(item),"quiet"));
+  actions.append(button("删除",()=>openProjectDelete(item),"quiet"));
   card.append(main,actions);
   Promise.resolve().then(load).then((project)=>{
     if (thumb.isConnected && !$("projectShelf").hidden) paintSceneThumbnail(thumb,project,true);
@@ -8282,8 +9110,10 @@ async function renameShelfProject(item,name) {
     const saved=await writeLocalProject(entry.handle,content);
     const active=activeIndexedProject();
     if (active?.name===entry.name && active.modified===file.lastModified && active.size===file.size) {
+      const modified=active.dirty;
       workspace.projectName=name;
-      setProjectFile({...active,size:saved.size,modified:saved.lastModified},JSON.stringify(await readLocalProjectFile(saved)));
+      setProjectFile({...active,size:saved.size,modified:saved.lastModified},
+        modified ? projectContentKey(await readLocalProjectFile(saved)) : projectContentKey());
       saveDraft();
     }
     if (record?.file?.modified===file.lastModified && record.file.size===file.size) {
@@ -8295,7 +9125,43 @@ async function renameShelfProject(item,name) {
   } else if (!projectFile && item.key===currentScratchKey) {
     mutate(()=>{workspace.projectName=name;},false);
   }
-  if (record) record.data=JSON.stringify({...JSON.parse(record.data),projectName:name});
+  if (record) {
+    const updated={...record,data:JSON.stringify({...JSON.parse(record.data),projectName:name})};
+    if (!(await setShelfDraft(item.key,updated))) projectShelfDrafts.set(item.key,updated);
+  }
+  renderProjectShelf();
+}
+function openProjectDelete(item) {
+  projectDeleteTarget=item;
+  $("deleteProjectMessage").textContent="删除「"+item.name+"」？"+(item.entry ?
+    "将删除本地文件 "+item.entry.name+" 和此项目的工作草稿。" : "将移除此工作草稿。");
+  $("deleteProjectStatus").textContent="";
+  $("deleteProjectDialog").showModal();
+}
+async function deleteShelfProject(item) {
+  const {entry,key}=item;
+  const deletingActive=draftProjectKey(projectFile)===key;
+  if (entry) {
+    const connection=projectConnection;
+    if (!connection || entry.directory!==connection.id) throw new Error("请先连接项目所在的本地目录。");
+    if (!projectDirectoryAvailable) await ensureProjectDirectory();
+    const handle=await connection.handle.getFileHandle(entry.name);
+    const file=await handle.getFile();
+    if (!(await handle.isSameEntry(entry.handle)) || file.lastModified!==entry.modified || file.size!==entry.size) {
+      throw new Error("磁盘文件已发生变化，请刷新列表后重新选择。");
+    }
+    await connection.handle.removeEntry(entry.name);
+    projectIndex=projectIndex.filter((row)=>row!==entry);
+  }
+  const removed=await setShelfDraft(key,null);
+  if (!removed && !entry) throw new Error("无法清除浏览器中的草稿，请重试。");
+  projectShelfDrafts.delete(key);
+  projectFlags.delete(key);
+  saveProjectFlags();
+  if (deletingActive) {
+    restoreShelfProject(singleWorkspace(createProject()),null,null,"draft:"+createShelfId());
+    $("projectFileName").value="";
+  }
   renderProjectShelf();
 }
 function renderProjectShelf() {
@@ -8309,18 +9175,18 @@ function renderProjectShelf() {
     if (record.file || (!projectFile && key===currentScratchKey)) continue;
     const data=JSON.parse(record.data);
     items.push({key,name:data.projectName || data.dialogs.find(({id})=>id===data.activeDialog)?.layout.root.name || "工作草稿",
-      temporary:true,selected:false,load:()=>data,open:()=>{
-        if (projectShelfBusy) return;
-        stashShelfProject();
+      temporary:true,selected:false,load:()=>data,open:()=>runProjectShelfOperation(async ()=>{
+        await stashShelfProject();
         restoreShelfProject(data,null,null,key);
         $("projectShelfStatus").textContent="已切换到工作草稿。";
-      }});
+      })});
   }
   for (const entry of projectIndex) {
     const key=draftProjectKey(entry), record=projectShelfDrafts.get(key);
-    items.push({key,entry,name:entry.title || localProjectName(entry.name),count:entry.count,
-      selected:active?.name===entry.name,temporary:Boolean(record),
-      load:()=>record ? JSON.parse(record.data) : entry.handle.getFile().then(readLocalProjectFile),
+    const selected=active?.name===entry.name;
+    items.push({key,entry,name:entry.title || localProjectName(entry.name),count:selected ? workspace.dialogs.length : entry.count,
+      selected,temporary:selected ? Boolean(active.dirty) : Boolean(record),
+      load:()=>selected ? workspaceFile() : record ? JSON.parse(record.data) : entry.handle.getFile().then(readLocalProjectFile),
       open:()=>openIndexedProject(entry)});
   }
   const visible=projectFavoritesOnly ? items.filter(({key})=>projectFlags.get(key)?.favorite) : items;
@@ -8368,43 +9234,57 @@ async function refreshLocalProjects() {
 async function restoreProjectDirectory() {
   if (projectShelfChecked) return;
   projectShelfChecked=true;
-  if (typeof window.showDirectoryPicker!=="function") {
-    $("projectShelfStatus").textContent="此浏览器可使用「项目」菜单打开和下载 JSON。目录管理可在 Chrome 或 Edge 中打开。";
-    return;
-  }
   await runProjectShelfOperation(async ()=>{
+    await restoreShelfDrafts();
+    renderProjectShelf();
+    if (typeof window.showDirectoryPicker!=="function") {
+      $("projectShelfStatus").textContent="此浏览器会下载项目 JSON。选取本地目录可用 Chrome 或 Edge。";
+      return;
+    }
     try { projectConnection=await assetFolderTransaction("readonly",(store)=>store.get("projects")); }
     catch {
       $("projectShelfStatus").textContent="目录记忆当前不可用。仍可选择本地目录管理项目。";
       return;
     }
     if (projectConnection) await refreshLocalProjects();
-    else $("projectShelfStatus").textContent="选择项目 JSON 所在的目录，或选择空目录保存新项目。";
+    else $("projectShelfStatus").textContent="首次保存会打开目录选择器。也可先选择已有项目的目录。";
   });
+}
+async function pickLocalProjectDirectory() {
+  const handle=await window.showDirectoryPicker({id:"sc2-workbench-projects",mode:"readwrite"});
+  const same=projectConnection && await handle.isSameEntry(projectConnection.handle);
+  if (!same) {
+    if (projectFile) {
+      await stashShelfProject();
+      setProjectFile(null);
+      currentScratchKey="draft:"+createShelfId();
+      saveDraft();
+    }
+    projectIndex=[];
+    projectShelfPage=0;
+  }
+  projectConnection={source:"projects",handle,id:same ? projectConnection.id : createShelfId()};
+  projectShelfChecked=true;
+  let remembered=true;
+  try { await assetFolderTransaction("readwrite",(store)=>store.put(projectConnection)); }
+  catch { remembered=false; }
+  await refreshLocalProjects();
+  if (!remembered) $("projectShelfStatus").textContent+=" · 浏览器未能记住目录";
 }
 function chooseProjectDirectory() {
   if (typeof window.showDirectoryPicker!=="function") {
     $("projectShelfStatus").textContent="此浏览器不支持选取可写目录，可在「项目」菜单打开或下载 JSON。";
     return;
   }
-  return runProjectShelfOperation(async ()=>{
-    const handle=await window.showDirectoryPicker({id:"sc2-workbench-projects",mode:"readwrite"});
-    const same=projectConnection && await handle.isSameEntry(projectConnection.handle);
-    if (!same) {
-      setProjectFile(null);
-      currentScratchKey="draft:"+createShelfId();
-      saveDraft();
-      projectIndex=[];
-      projectShelfPage=0;
-    }
-    projectConnection={source:"projects",handle,id:same ? projectConnection.id : createShelfId()};
-    let remembered=true;
-    try { await assetFolderTransaction("readwrite",(store)=>store.put(projectConnection)); }
-    catch { remembered=false; }
-    projectShelfChecked=true;
+  return runProjectShelfOperation(pickLocalProjectDirectory);
+}
+async function ensureProjectDirectory() {
+  if (projectDirectoryAvailable) return;
+  if (projectConnection) {
+    await projectConnection.handle.requestPermission({mode:"readwrite"});
     await refreshLocalProjects();
-    if (!remembered) $("projectShelfStatus").textContent+=" · 浏览器未能记住目录";
-  });
+  } else await pickLocalProjectDirectory();
+  if (!projectDirectoryAvailable) throw new Error("需要项目目录的写入权限。请授权或选择其他目录。");
 }
 function authorizeProjectDirectory() {
   return runProjectShelfOperation(async ()=>{
@@ -8419,9 +9299,9 @@ function openIndexedProject(entry) {
     const saved=await entry.handle.getFile();
     const data=await readLocalProjectFile(saved);
     const file={directory:projectConnection.id,name:entry.name,modified:saved.lastModified,size:saved.size};
+    await stashShelfProject();
     const draft=projectShelfDrafts.get(draftProjectKey(file));
-    stashShelfProject();
-    restoreShelfProject(draft ? JSON.parse(draft.data) : data,draft?.file || file,JSON.stringify(data));
+    restoreShelfProject(draft ? JSON.parse(draft.data) : data,draft?.file || file,projectContentKey(data));
     $("projectShelfStatus").textContent="已打开「"+(entry.title || localProjectName(entry.name))+"」"+(draft ? "的未保存草稿。" : "。");
   });
 }
@@ -8437,24 +9317,43 @@ async function writeLocalProject(handle,data) {
   return handle.getFile();
 }
 function saveIndexedProject(asNew=false) {
-  if (!projectDirectoryAvailable) return;
   return runProjectShelfOperation(async ()=>{
     const destination=workspace;
+    const requestedName=$("projectFileName").value.trim() || workspace.projectName || model.root.name;
+    const saveDownload=()=>{
+      const name=validProjectFilename(requestedName);
+      download(name,JSON.stringify({...workspaceFile(),projectName:localProjectName(name)})+"\n","application/json");
+      $("projectShelfStatus").textContent="已发起「"+name+"」的下载。可用「打开项目 JSON」重新打开。";
+    };
+    if (!projectConnection && typeof window.showDirectoryPicker!=="function") return saveDownload();
+    try { await ensureProjectDirectory(); }
+    catch (error) {
+      if (error.name==="SecurityError") return saveDownload();
+      if (error.name==="AbortError") {
+        $("projectShelfStatus").textContent="已取消选择目录。可以再次点「保存当前」。";
+        return;
+      }
+      throw error;
+    }
+    if (workspace!==destination) throw new Error("当前项目已切换，请重新保存。");
     const {handle:directory,id}=projectConnection;
     const previous=activeIndexedProject();
-    const name=asNew ? validProjectFilename($("projectFileName").value.trim() || workspace.projectName || model.root.name) : previous?.name;
-    if (!name) throw new Error("请输入项目名称后另存为。");
+    const creating=asNew || !previous;
+    const name=creating ? validProjectFilename(requestedName) : previous.name;
     const saved=workspaceFile();
-    if (asNew) saved.projectName=localProjectName(name);
+    if (creating) saved.projectName=localProjectName(name);
+    const savedContent=projectContentKey(saved);
     const content=JSON.stringify(saved)+"\n";
     if (new Blob([content]).size>maxProjectFileSize) throw new Error("项目文件大于 24 MB。");
     let handle;
     try { handle=await directory.getFileHandle(name); }
     catch (error) { if (error.name!=="NotFoundError") throw error; }
-    if (asNew) {
+    let created;
+    if (creating) {
       if (handle) throw new Error("目录中已有「"+name+"」，请换一个名称。");
       handle=await directory.getFileHandle(name,{create:true});
-      if ((await handle.getFile()).size) throw new Error("同名文件已存在，请换一个名称。");
+      created=await handle.getFile();
+      if (created.size) throw new Error("同名文件已存在，请换一个名称。");
     } else {
       if (!handle) throw new Error("原项目文件已移动，请另存为。");
       const current=await handle.getFile();
@@ -8462,19 +9361,32 @@ function saveIndexedProject(asNew=false) {
         throw new Error("磁盘上的项目已修改。请另存为，保留两份。");
       }
     }
-    const written=await writeLocalProject(handle,content);
+    let written;
+    try { written=await writeLocalProject(handle,content); }
+    catch (error) {
+      if (created) {
+        try {
+          const empty=await directory.getFileHandle(name);
+          const state=await empty.getFile();
+          if (!state.size && state.lastModified===created.lastModified && await handle.isSameEntry(empty)) {
+            await directory.removeEntry(name);
+          }
+        } catch {}
+      }
+      throw error;
+    }
     if (workspace===destination) {
       const oldKey=draftProjectKey(projectFile);
       const flags=projectFlags.get(oldKey);
-      projectShelfDrafts.delete(draftProjectKey(projectFile));
-      if (asNew) workspace.projectName=saved.projectName;
-      setProjectFile({directory:id,name,modified:written.lastModified,size:written.size},JSON.stringify(saved));
-      if (asNew && oldKey.startsWith("draft:") && flags) {
+      if (creating) workspace.projectName=saved.projectName;
+      setProjectFile({directory:id,name,modified:written.lastModified,size:written.size},savedContent);
+      saveDraft();
+      await setShelfDraft(oldKey,null);
+      if (creating && oldKey.startsWith("draft:") && flags) {
         projectFlags.delete(oldKey);
         projectFlags.set(draftProjectKey(projectFile),flags);
         saveProjectFlags();
       }
-      saveDraft();
     }
     $("projectFileName").value=localProjectName(name);
     projectShelfPage=0;
@@ -8507,14 +9419,12 @@ function installProjectShelf() {
   $("chooseProjectDirectory").onclick=chooseProjectDirectory;
   $("authorizeProjectDirectory").onclick=authorizeProjectDirectory;
   $("refreshProjects").onclick=()=>runProjectShelfOperation(refreshLocalProjects);
-  $("newShelfProject").onclick=()=>{
-    stashShelfProject();
-    replaceProject(singleWorkspace(createProject()));
-    currentScratchKey="draft:"+createShelfId();
-    renderProjectShelf();
+  $("newShelfProject").onclick=()=>runProjectShelfOperation(async ()=>{
+    await stashShelfProject();
+    restoreShelfProject(singleWorkspace(createProject()),null,null,"draft:"+createShelfId());
     $("projectFileName").value="";
     $("projectShelfStatus").textContent="新建了工作草稿。可另存为本地项目。";
-  };
+  });
   $("saveShelfProject").onclick=()=>saveIndexedProject();
   $("saveNewShelfProject").onclick=()=>saveIndexedProject(true);
   $("filterFavoriteProjects").onclick=()=>{projectFavoritesOnly=!projectFavoritesOnly;projectShelfPage=0;renderProjectShelf();};
@@ -8535,6 +9445,20 @@ function installProjectShelf() {
       }
     });
   };
+  $("confirmDeleteProject").onclick=()=>runProjectShelfOperation(async ()=>{
+    const item=projectDeleteTarget;
+    if (!item) return;
+    const button=$("confirmDeleteProject");
+    button.disabled=true;
+    try {
+      await deleteShelfProject(item);
+      $("deleteProjectDialog").close();
+      $("projectShelfStatus").textContent="已删除「"+item.name+"」。";
+    } catch (error) {
+      $("deleteProjectStatus").textContent=error.message || "无法删除项目。";
+      throw error;
+    } finally { button.disabled=false; }
+  });
   $("projectPagePrev").onclick=()=>{ projectShelfPage--;renderProjectShelf(); };
   $("projectPageNext").onclick=()=>{ projectShelfPage++;renderProjectShelf(); };
   $("copyProjectDialog").onclick=()=>copyFromProjectShelf("dialog");
@@ -8640,7 +9564,7 @@ const assetFolders = {
 };
 function openAssetFolderDatabase() {
   return new Promise((resolve,reject)=>{
-    const request = indexedDB.open(STORE_KEY+"-asset-folders",2);
+    const request = indexedDB.open(STORE_KEY+"-asset-folders",3);
     let expired = false;
     const timer = setTimeout(()=>{
       expired = true;
@@ -8649,6 +9573,7 @@ function openAssetFolderDatabase() {
     request.onupgradeneeded = ({oldVersion}) => {
       if (oldVersion < 1) request.result.createObjectStore(assetFolderStore,{keyPath:"source"});
       if (oldVersion < 2) request.result.createObjectStore("templates",{keyPath:"id"});
+      if (oldVersion < 3) request.result.createObjectStore(shelfDraftStore,{keyPath:"key"});
     };
     request.onsuccess = () => {
       clearTimeout(timer);
@@ -9663,12 +10588,12 @@ function bindingRegistry(layouts) {
 function bindingPlan(values = null,includeAudience = true,layout = model,registry = bindingRegistry([layout])) {
   const {globals,reference,origins,generated} = registry;
   const output = [], issues = [];
-  function add(value,type,label,node,field = "field-groupVar") {
+  function add(value,type,label,node,field = "field-groupVar",readOnly = false) {
     const {binding,error} = inspectBinding(value);
     const issue = (message) => issues.push({level:"error",label,message,id:node?.id ?? 0,field});
     if (error) return issue(error);
     const {name,indexes,segments} = binding;
-    const perPlayer = layout.root.perPlayer && type !== "玩家组";
+    const perPlayer = layout.root.perPlayer && type !== "玩家组" && !readOnly;
     const leafIndexes=segments?.at(-1).indexes || indexes;
     if (perPlayer && leafIndexes.length === 4) return issue("独立实例的首维用于玩家编号，目标数组其余最多可填 3 维索引。");
     const ref = perPlayer ? playerBindingReference(binding,playerLoopIndex) : binding.ref;
@@ -9677,12 +10602,12 @@ function bindingPlan(values = null,includeAudience = true,layout = model,registr
     const segmentDimensions=dimensionParts?.map((part)=>part.length);
     if (generated.has(segments?.[0].name || name)) return issue(name+" 与自动生成的 Galaxy 名称冲突。");
     const prev = reference.get(ref);
-    if (prev && (type !== "玩家组" || prev.type !== type)) {
+    if (!readOnly && prev && (type !== "玩家组" || prev.type !== type)) {
       const shown = perPlayer ? playerBindingReference(binding,"玩家编号") : ref;
       return issue(shown+" 已在「"+prev.label+"」中使用。每个句柄需要独立变量或数组位置。");
     }
     const existing = globals.get(name);
-    if (existing && Boolean(existing.playerIndexed) !== Boolean(perPlayer)) {
+    if (existing && !readOnly && !existing.readOnly && Boolean(existing.playerIndexed) !== Boolean(perPlayer)) {
       return issue(name+" 同时用于共享对话框和按玩家编号存储的句柄。请分别使用两个变量。");
     }
     if (existing && (existing.type !== type || existing.max.length !== max.length)) {
@@ -9693,11 +10618,16 @@ function bindingPlan(values = null,includeAudience = true,layout = model,registr
     if (existing && JSON.stringify(existing.segmentDimensions)!==JSON.stringify(segmentDimensions)) {
       return issue(name+" 的数组索引位于不同成员层级，请核对结构体声明。");
     }
-    if (existing) existing.max = existing.max.map((maximum,index) => Math.max(maximum,max[index]));
+    if (existing) {
+      existing.max = existing.max.map((maximum,index) => Math.max(maximum,max[index]));
+      if (!readOnly) delete existing.readOnly;
+    }
     else {
-      globals.set(name,{name,type,max,...(segmentDimensions ? {segmentDimensions} : {}),...(perPlayer ? {playerIndexed:true} : {})});
+      globals.set(name,{name,type,max,...(segmentDimensions ? {segmentDimensions} : {}),...(perPlayer ? {playerIndexed:true} : {}),
+        ...(readOnly ? {readOnly:true} : {})});
       origins.set(name,label);
     }
+    if (readOnly) return;
     reference.set(ref,{label,type});
     if (node && type !== "玩家组") output.push({node,ref});
   }
@@ -9710,6 +10640,12 @@ function bindingPlan(values = null,includeAudience = true,layout = model,registr
       else issues.push({level:"error",label,message:"已启用 GUI 绑定，请填写全局变量 ID 或数组元素。",id:node.id,field:"field-binding"});
     }
     if (!includeAudience) continue;
+    const expression=activeTextExpression(node);
+    if (expression) {
+      const {errors,bindings}=expressionFields(expression,layout.root);
+      for (const message of errors) issues.push({level:"error",label,message,id:node.id,field:"field-textExpression"});
+      for (const token of bindings) add(token.ref,token.type,label+" "+token.label,node,"field-textExpression",true);
+    }
     if (node.id === 0 && node.audience === "variable") add(node.groupVar,"玩家组",label+" 的初始范围",node);
     const scopes = new Set();
     for (const scope of node.variants || []) {
@@ -9723,7 +10659,7 @@ function bindingPlan(values = null,includeAudience = true,layout = model,registr
 }
 const maxMapScriptSize = 8 * 1024 * 1024;
 const mapStorageTypes = {"对话框":["int","dialog"],"对话框项":["int","control","dialogcontrol"],
-  "玩家组":["playergroup"],"整数":["int"],"布尔值":["bool"]};
+  "玩家组":["playergroup"],"整数":["int"],"布尔值":["bool"],"实数":["fixed"],"字符串":["string"],"文本":["text"]};
 function scanMapDeclarations(source) {
   const protectedText = /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'/g;
   const clean = source.replace(protectedText,(value) => value.replace(/[^\r\n]/g," "));
@@ -9778,7 +10714,7 @@ function variableIndexRanges({name,max,segmentDimensions},separator=" / ") {
 }
 function auditMapDeclarations(source,expected) {
   const {globals,structures}=scanMapDeclarations(source);
-  const rows=expected.map(({name,type,max,segmentDimensions})=>{
+  const rows=expected.map(({name,type,max,segmentDimensions,readOnly})=>{
     const parts=name.split(".");
     const required=type+(max.length ? " "+(segmentDimensions ? variableIndexRanges({name,max,segmentDimensions}) :
       max.map((last)=>"[0–"+last+"]").join("")) : "");
@@ -9795,7 +10731,7 @@ function auditMapDeclarations(source,expected) {
       }
       if (matches.length!==1) return result("错误","找到 "+matches.length+" 条同名声明："+path+"。");
       leaf=matches[0];
-      if (leaf.constant) return result("错误",path+" 为常量。句柄和玩家组绑定需要可写的变量。");
+      if (leaf.constant && !readOnly) return result("错误",path+" 为常量。句柄和玩家组绑定需要可写的变量。");
       const count=segmentDimensions?.[i] ?? (i===parts.length-1 ? max.length : 0);
       if (leaf.dimensions.length!==count) return result("错误",path+" 当前 "+leaf.dimensions.length+" 维，需要 "+count+" 维。");
       for (const [index,{length}] of leaf.dimensions.entries()) {
@@ -9912,7 +10848,7 @@ function overrideActions(layout,item,playerIndex="") {
         name = "libNtve_gf_SetDialogItemChecked";
         args = [instanceHandle,value,players];
       }
-      rows.push({dialog:layout.root.name,item:item.name,handle,ref,when,
+      rows.push({dialog:layout.root.name,item:item.name,handle,ref,when,property:key,
         scope:scopeLabel(scope),action:names[key],value:typeof value === "boolean" ? (value ? "是" : "否") : String(value),
         code:name+"("+args.join(", ")+");"});
     }
@@ -9935,7 +10871,25 @@ function dialogAttachmentCode(layout,target,playerIndex="") {
   return "DialogSetPositionRelative("+[galaxyHandle(prefix,root,playerIndex),"c_anchor"+root.anchor,
     galaxyHandle(target.prefix,target.root,targetIndex),"c_anchor"+root.attachAnchor,root.x,root.y].join(", ")+");";
 }
-function playerInstanceInit(layout,plan,actions,target) {
+function appendScopedActions(lines,actions) {
+  for (const row of actions) {
+    if (row.when) lines.push("if ("+row.when+") {","    "+row.code,"}");
+    else lines.push(row.code);
+  }
+}
+function instanceActions(layout,lines) {
+  if (!lines.length) return [];
+  return playerGroupLoop(initialAudience(layout.root),[
+    "if ("+layout.prefix+"_HasInstance("+playerLoopIndex+")) {",...lines.map((line)=>"    "+line),"}"
+  ]);
+}
+function textExpressionActions(layout,nodes) {
+  const player=layout.root.perPlayer ? playerLoopIndex : "";
+  const audience=player ? "PlayerGroupSingle("+player+")" : "PlayerGroupAll()";
+  return nodes.map((node)=>"DialogControlSetPropertyAsText("+[galaxyHandle(layout.prefix,node,player),
+    "c_triggerControlPropertyText",audience,compileTextExpression(node,player)].join(", ")+");");
+}
+function playerInstanceInit(layout,plan,actions,target,expressionActions=[]) {
   const {root,prefix}=layout;
   const index=playerLoopIndex;
   const lines=plan.output.map(({node,ref})=>ref+" = "+galaxyHandle(prefix,node,index)+";");
@@ -9944,15 +10898,10 @@ function playerInstanceInit(layout,plan,actions,target) {
     if (target.root.perPlayer) lines.push("if ("+target.prefix+"_HasInstance("+index+")) {","    "+attach,"}");
     else lines.push(attach);
   }
+  lines.push(...expressionActions);
   if (root.visible) lines.push("DialogSetVisible("+galaxyHandle(prefix,root,index)+", PlayerGroupSingle("+index+"), true);");
-  for (const row of actions) {
-    if (row.when) lines.push("if ("+row.when+") {","    "+row.code,"}");
-    else lines.push(row.code);
-  }
-  if (!lines.length) return [];
-  return playerGroupLoop(initialAudience(root),[
-    "if ("+prefix+"_HasInstance("+index+")) {",...lines.map((line)=>"    "+line),"}"
-  ]);
+  appendScopedActions(lines,actions);
+  return instanceActions(layout,lines);
 }
 function makeWorkspaceExport() {
   const documents = workspace.dialogs;
@@ -9988,7 +10937,9 @@ function makeWorkspaceExport() {
   const vote = votePlan(local);
   if (vote) issues.push(...vote.issues.filter((issue) => !issue.recipeOnly).map((issue) => ({...issue,dialogId:activeDialog})));
   const blocked = issues.some((issue) => issue.level === "error");
-  const managed = hasPlayerInstances || documents.length > 1 || actions.length > 0;
+  const expressionNodes = new Map(documents.map(({id,layout})=>[id,layout.nodes.filter(activeTextExpression)]));
+  const hasExpressions = [...expressionNodes.values()].some((nodes)=>nodes.length);
+  const managed = hasPlayerInstances || hasExpressions || documents.length > 1 || actions.length > 0;
   const audienceRows = [...documents.map(({layout:{root}}) => {
     const binding=parseBinding(guiBindingValue(root));
     return {dialog:root.name,item:"对话框",ref:binding ? (root.perPlayer ? playerBindingReference(binding,"玩家编号") : binding.ref) : "",
@@ -10004,14 +10955,15 @@ function makeWorkspaceExport() {
       continue;
     }
     for (const {node} of plans.get(id).output) scriptHandles.add(galaxyHandle(layout.prefix,node));
+    for (const node of expressionNodes.get(id)) scriptHandles.add(galaxyHandle(layout.prefix,node));
     if (managed && (layout.root.visible || attachedDialogs.has(id))) scriptHandles.add(galaxyHandle(layout.prefix,layout.root));
   }
-  const result = {plan,actions,audienceRows,vote,blocked,checks:issues,managed,scriptHandles,hasPlayerInstances};
+  const result = {plan,actions,audienceRows,vote,blocked,checks:issues,managed,scriptHandles,hasPlayerInstances,textRefresh:""};
   if (blocked) return {...result,script:"",init:""};
   if (!managed) return {...result,
     script:makeGalaxy(model.prefix,local,model,false,scriptHandles),init:makeInitAction(model.prefix,local)};
   const script = documents.map(({id,layout}) => makeGalaxy(layout.prefix,plans.get(id),layout,true,scriptHandles)).join("\n");
-  const init = [];
+  const init = [], textRefresh = [];
   for (const {id,layout:{root,prefix}} of documents) {
     init.push(prefix+"_Create("+(root.perPlayer ? initialAudience(root) : "PlayerGroupAll()")+");");
     if (!root.perPlayer) {
@@ -10023,18 +10975,26 @@ function makeWorkspaceExport() {
     const {root}=layout;
     if (!root.perPlayer && root.relativeDialog) init.push(dialogAttachmentCode(layout,layoutsById.get(root.relativeDialog)));
   }
-  for (const {layout} of documents) {
+  for (const {id,layout} of documents) {
     const {root}=layout;
     if (root.perPlayer) continue;
+    init.push(...textExpressionActions(layout,expressionNodes.get(id)));
     if (root.visible) init.push("DialogSetVisible("+[galaxyHandle(layout.prefix,root),initialAudience(root),"true"].join(", ")+");");
   }
   for (const {id,layout} of documents) {
     if (!layout.root.perPlayer) for (const row of docActions.get(id)) init.push(row.code);
   }
   for (const {id,layout} of ordered) {
-    if (layout.root.perPlayer) init.push(...playerInstanceInit(layout,plans.get(id),docActions.get(id),layoutsById.get(layout.root.relativeDialog)));
+    const nodes=expressionNodes.get(id);
+    const expressions=textExpressionActions(layout,nodes);
+    const actions=docActions.get(id);
+    if (layout.root.perPlayer) init.push(...playerInstanceInit(layout,plans.get(id),actions,layoutsById.get(layout.root.relativeDialog),expressions));
+    if (!nodes.length) continue;
+    const handles=new Set(nodes.map((node)=>galaxyHandle(layout.prefix,node)));
+    appendScopedActions(expressions,actions.filter(({handle,property})=>property==="text" && handles.has(handle)));
+    textRefresh.push(...(layout.root.perPlayer ? instanceActions(layout,expressions) : expressions));
   }
-  return {...result,script,init:init.join("\n")};
+  return {...result,script,init:init.join("\n"),textRefresh:textRefresh.join("\n")};
 }
 function playerActionText(actions) {
   return ["对话框\t控件\tGUI 变量\t玩家范围\t动作\t值",...actions.map(({dialog,item,ref,scope,action,value}) =>
@@ -10312,7 +11272,8 @@ function makeGalaxy(prefix,plan,layout,managed,scriptHandles) {
           call("libNtve_gf_SetDialogItemTextWriteoutDuration",name,(node.writeoutMs/1000).toFixed(3),layoutPlayers);
           call("libNtve_gf_SetDialogItemTextWriteout",name,"true",layoutPlayers);
         }
-        call("DialogControlSetPropertyAsText",name,"c_triggerControlPropertyText",layoutPlayers,galaxyText(node.text,node.textKey,node.color,node.richText));
+        if (!activeTextExpression(node)) call("DialogControlSetPropertyAsText",name,"c_triggerControlPropertyText",layoutPlayers,
+          galaxyText(node.text,node.textKey,node.color,node.richText));
         if (node.style) call("libNtve_gf_SetDialogItemStyle",name,galaxyString(node.style),layoutPlayers);
       }
       if (node.tooltip || node.tooltipKey) {
@@ -10574,11 +11535,12 @@ function projectResources() {
     append("字体样式",name,owner,style ? "项目已载入定义，核对地图字体样式" : "核对地图字体样式或依赖");
     if (style?.font) append("字体资源",style.font,owner,"核对路径与语言目录");
   };
-  const richFonts = (value,owner) => {
+  const richResources = (value,owner,location=null) => {
     const pending = parseRichText(value || "");
     while (pending.length) {
       const next = pending.pop();
       if (next.kind === "s" && next.closed) font(next.val,owner);
+      if (next.kind === "image") texture(next.path,owner,location);
       if (next.children) pending.push(...next.children);
     }
   };
@@ -10612,12 +11574,14 @@ function projectResources() {
         if (source) listLayout(source,owner);
       }
       font(node.style,owner);
-      append("本地化文本键",node.textKey,owner,"核对地图文本或依赖");
+      const expression=activeTextExpression(node);
+      if (!expression) append("本地化文本键",node.textKey,owner,"核对地图文本或依赖");
       append("本地化文本键",node.tooltipKey,owner,"核对地图文本或依赖");
-      if (node.richText && !node.textKey) richFonts(node.text,owner);
-      if (!node.tooltipKey) richFonts(node.tooltip,owner);
+      if (expression) richResources(expression.template,owner,{dialog:id,id:node.id,field:"field-textExpression"});
+      else if (node.richText && !node.textKey) richResources(node.text,owner,{dialog:id,id:node.id,field:"field-text"});
+      if (!node.tooltipKey) richResources(node.tooltip,owner);
       if (listKinds.has(node.type)) for (const {text,key} of listOptionRows(node)) {
-        richFonts(text,owner);
+        richResources(text,owner);
         append("本地化文本键",key,owner,"核对地图文本或依赖");
       }
       append("单位数据",node.unitLink,owner,"核对数据编辑器中的单位对象");
@@ -10625,7 +11589,7 @@ function projectResources() {
         const target = owner+" / "+scopeLabel(variation);
         texture(variation.path,target,{dialog:id,id:node.id,field:"openOverrides"});
         texture(variation.hover,target,{dialog:id,id:node.id,field:"openOverrides"});
-        if (node.richText) richFonts(variation.text,target);
+        if (node.richText) richResources(variation.text,target,{dialog:id,id:node.id,field:"openOverrides"});
         append("本地化文本键",variation.textKey,target,"核对地图文本或依赖");
         append("单位数据",variation.unitLink,target,"核对数据编辑器中的单位对象");
       }
@@ -10663,15 +11627,18 @@ function resourceListText() {
 
 let exportState = null;
 function renderExportTab(tab) {
-  const {plan,script,init,vote,checks,blocked,audienceRows,managed,hasPlayerInstances} = exportState;
+  const {plan,script,init,textRefresh,vote,checks,blocked,audienceRows,managed,hasPlayerInstances} = exportState;
   if (blocked && !["checks","vote","mapAudit","resources","changes"].includes(tab)) tab = "checks";
+  if (tab==="textRefresh" && !textRefresh) tab="script";
   exportState.tab = tab;
   const variables = tab === "variables", action = tab === "init", checking = tab === "checks", voting = tab === "vote";
   const players = tab === "players", audit = tab === "mapAudit", resources = tab === "resources", changes = tab === "changes";
-  const code = tab === "script" || action;
+  const refreshing = tab === "textRefresh";
+  const code = tab === "script" || action || refreshing;
   const help = {
     script:"在触发器树新建「自定义脚本」，把这段完整脚本粘贴进去。",
     init:"在初始化触发器中添加「自定义脚本」动作并粘贴。初始化执行一次，之后用 GUI 控制显示。",
+    textRefresh:"界面创建后，在修改余额、排名等变量的触发器中添加「自定义脚本」动作并粘贴。每次执行都会重新读取变量。",
     variables:"点击名称即可复制，直接粘进全局变量的脚本标识符栏。gv_ 由银河编辑器自动添加。",
     mapAudit:"对照地图实际脚本检查变量名、类型和数组范围。",
     resources:"查看布局用到的路径、单位数据和字体样式。",
@@ -10690,15 +11657,16 @@ function renderExportTab(tab) {
   $("exportPlayerActions").hidden = !players;
   $("exportVote").hidden = !voting;
   $("copyStatus").textContent = "";
-  $("copyGalaxy").textContent = changes ? "复制差异报告" : resources ? "复制资源清单" : voting ? "复制 GUI 配方" : players ? "复制玩家覆盖清单" : variables ? "复制变量清单" : action ? "复制初始化动作" : "复制脚本";
+  $("copyGalaxy").textContent = changes ? "复制差异报告" : resources ? "复制资源清单" : voting ? "复制 GUI 配方" : players ? "复制玩家覆盖清单" : variables ? "复制变量清单" : refreshing ? "复制刷新动作" : action ? "复制初始化动作" : "复制脚本";
   $("copyGalaxy").hidden = audit || checking || (voting && !vote?.ready) || (players && !audienceRows.length);
-  $("downloadGalaxy").textContent = action ? "下载初始化片段" : "下载 .galaxy";
+  $("downloadGalaxy").textContent = refreshing ? "下载刷新片段" : action ? "下载初始化片段" : "下载 .galaxy";
   $("downloadGalaxy").hidden = !code;
   const lobbyArt = projectUsesTextures(lobbyAssetRoot);
   const voteArt = projectUsesTextures(voteButtonAssetRoot);
   $("downloadVoteButtonSkin").hidden = !voteArt;
   $("applyVoteButtonSkin").hidden = !voteButtonsWithoutSkin(model).length;
   $("exportVoteTab").hidden = !vote;
+  $("exportTextRefreshTab").hidden = !textRefresh;
   $("exportCheckTab").textContent = "导出检查"+(checks.length ? " · "+checks.length : "");
   document.querySelectorAll("[data-export]").forEach((button) => {
     const key = button.dataset.export;
@@ -10707,7 +11675,7 @@ function renderExportTab(tab) {
   });
   if (variables) {
     const rows = guiGlobals(plan,vote).map((entry) => [
-      variableCopyButton(entry.name),entry.type,entry.max.length ? String(entry.max.length) : "—",
+      variableCopyButton(entry.name),entry.type+(entry.readOnly ? " · 表达式读取" : ""),entry.max.length ? String(entry.max.length) : "—",
       entry.max.length ? variableIndexRanges(entry) : "—"
     ]);
     $("bindingSummary").replaceChildren(rows.length ? createTable(["GUI 变量 / 结构体成员","GUI 类型","数组维数","每维需覆盖的索引"],rows) :
@@ -10727,7 +11695,7 @@ function renderExportTab(tab) {
   if (changes) drawLayoutDiff();
   if (resources) renderResourceList();
   if (voting) renderVoteGuide();
-  if (code) $("galaxy").value = action ? init : script;
+  if (code) $("galaxy").value = refreshing ? textRefresh : action ? init : script;
   $("exportNotes").textContent = [
     checking && blocked ? "先修正错误，再导出。提示项用于人工复核。" : "",
     checking && !blocked ? "当前可以导出。地图中的变量声明、依赖资源和实际显示请在编辑器中核对。" : "",
@@ -10735,6 +11703,7 @@ function renderExportTab(tab) {
     action && [...plan.globals.values()].some((entry) => entry.type === "玩家组") ? "调用前用 GUI 为玩家组变量分配玩家。" : "",
     action && managed ? "初始化按顺序创建各对话框、设置附着、显示范围与玩家覆盖。" : "",
     action && hasPlayerInstances ? "独立实例已内置玩家组循环。整段初始化动作执行一次即可。" : "",
+    action && textRefresh ? "在首次读取文字表达式前，先为它引用的地图变量赋初值。" : "",
     tab === "script" && !managed && !plan.output.length && model.root.audience !== "variable" ? "也可填 "+model.prefix+"_Init 到「初始化函数」栏，两种初始化方式任选其一。" : "",
     variables && plan.globals.size ? "数组从 0 开始。在「查看脚本」里确认每个维度的声明元素数大于清单中的最大索引。" : "",
     variables && [...plan.globals.values()].some((entry)=>entry.playerIndexed) ?
@@ -12355,6 +13324,12 @@ function beginDrag(event) {
   const handle = event.target.closest(".resize");
   const dialogHandle = event.target.closest(".dialog-handle");
   const node = event.target.closest(".control");
+  if (controlBrush) {
+    event.preventDefault();
+    if (node) paintControlStyle(canvasControlDialog(node),Number(node.dataset.node));
+    else if (dialogHandle || event.target.closest("[data-active-dialog]")) paintControlStyle(activeDialog,0);
+    return;
+  }
   const start=screenPoint(event);
   const activeRoot=bounds.get(0);
   const rootHit = !node && (event.target.closest("[data-active-dialog]") ||
@@ -12789,6 +13764,11 @@ canvasViewport.addEventListener("wheel",(event)=>{
 },{passive:false});
 document.addEventListener("keydown",(event) => {
   if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
+  if (event.key==="Escape" && controlBrush) {
+    stopControlBrush();
+    event.preventDefault();
+    return;
+  }
   if (event.key === "Escape" && !$("overlapMenu").hidden) {
     $("overlapMenu").hidden=true;
     event.preventDefault();
@@ -12911,6 +13891,7 @@ installLayoutLibrary();
 installSkinEditor();
 installComponentEditor();
 installAlignmentTools();
+installControlStyles();
 $("openCrossCopy").onclick=openCrossCopy;
 $("confirmCrossCopy").onclick=()=>{
   try {
@@ -13013,8 +13994,9 @@ $("copyGalaxy").onclick = async () => {
     "无法访问剪贴板，请直接选中并复制内容。" : "请按 Ctrl+C 或 ⌘C 复制选中的内容。";
 };
 $("downloadGalaxy").onclick = () => {
-  const init = exportState.tab === "init";
-  download((workspace.dialogs.length > 1 ? "sc2_ui_project" : model.prefix)+(init ? "_init-action.txt" : ".galaxy"),init ? exportState.init : exportState.script,"text/plain;charset=utf-8");
+  const tab=exportState.tab;
+  const suffix=tab==="textRefresh" ? "_refresh-text.txt" : tab==="init" ? "_init-action.txt" : ".galaxy";
+  download((workspace.dialogs.length > 1 ? "sc2_ui_project" : model.prefix)+suffix,$("galaxy").value,"text/plain;charset=utf-8");
 };
 $("downloadVoteButtonSkin").onclick = downloadVoteButtonSkin;
 $("applyVoteButtonSkin").onclick = () => {
@@ -13130,7 +14112,7 @@ installTour();
 new ResizeObserver(setSurfaceSize).observe($("viewport"));
 if (new URLSearchParams(location.search).get("localAgent")==="1") {
   window.SC2WorkbenchAutomation=Object.freeze({
-    apiVersion:1,version:"1.0.4",exportProject:automationExport,
+    apiVersion:1,version:"1.0.5",exportProject:automationExport,
     downloadArchive:(archive)=>download("sc2-ui-return.zip",archive,"application/zip")
   });
 } else restoreAssetFolders();
