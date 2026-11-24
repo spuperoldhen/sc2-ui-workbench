@@ -62,7 +62,7 @@ MAP_CONFIG = STATE / "map.txt"
 OFFLINE = b'<meta name="sc2-preview-bridge" content="offline">'
 PREVIEW_INCLUDE = 'include "Scripts/SC2WorkbenchPreview"'
 PREVIEW_CALL = "SC2WorkbenchPreview_Init();"
-VERSION = "2026-11-24.1"
+VERSION = "2026-11-24.2"
 
 
 def map_script(root):
@@ -142,7 +142,7 @@ def sc2_pids():
 
 
 def launch_direct(root, launcher, previous):
-    if previous:
+    if previous and previous in sc2_pids():
         subprocess.run(["taskkill", "/PID", str(previous), "/F"], capture_output=True)
     before = sc2_pids()
     subprocess.Popen([str(launcher), "-run", str(root), "-displaymode", "0"], cwd=str(launcher.parent))
@@ -156,7 +156,16 @@ def launch_direct(root, launcher, previous):
 
 
 def test_map(path):
+    path = Path(path)
+    try:
+        info = path.lstat()
+    except OSError as error:
+        raise ValueError("测试副本目录不存在。") from error
+    if path.is_symlink() or getattr(info, "st_file_attributes", 0) & 0x400:
+        raise ValueError("测试副本不能是链接或重解析点。")
     root = path.resolve(strict=True)
+    if not root.is_dir():
+        raise ValueError("请选择目录形态的地图副本，而不是打包地图文件。")
     if (root.suffix.lower() not in {".sc2map", ".sc2components"}
             or not root.stem.lower().endswith("-ui-test")
             or not destination(root, "ComponentList.SC2Components").is_file()):
@@ -164,17 +173,11 @@ def test_map(path):
     return root
 
 
-def choose_map():
-    try:
-        import tkinter as tk
-        from tkinter import filedialog
-    except ImportError as error:
-        raise ValueError("当前环境没有 tkinter，请用 --map-copy 指定测试副本。") from error
-    window = tk.Tk()
-    window.withdraw()
-    path = filedialog.askdirectory(title="选择以 -UI-Test 结尾的测试地图副本")
-    window.destroy()
-    return Path(path) if path else None
+def save_map(path):
+    MAP_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    temp = MAP_CONFIG.with_name(MAP_CONFIG.name + ".tmp")
+    temp.write_text(str(path), encoding="utf-8")
+    os.replace(temp, MAP_CONFIG)
 
 
 def service_state(port):
@@ -226,23 +229,81 @@ def verify_initialization(root):
         raise ValueError("请在测试副本配置唯一的预览 include 和初始化调用，保存后重试。")
 
 
+class PreviewError(Exception):
+    def __init__(self, code, message, status=409, report_path=None, conflicts=None):
+        super().__init__(message)
+        self.code = code
+        self.status = status
+        self.report_path = report_path
+        self.conflicts = conflicts or []
+
+
 class PreviewSession:
-    def __init__(self, root, state, replace_font_styles, launch="direct", launcher=None):
-        self.root = root
-        key = sha256(os.fsencode(str(root))).hexdigest()[:20]
-        self.state = state / key
-        self.state.mkdir(parents=True, exist_ok=True)
+    def __init__(self, state, replace_font_styles, launch="direct", launcher=None, initial_map=None):
+        self.state_root = state
         self.replace_font_styles = replace_font_styles
         self.launch = launch
         self.launcher = launcher or (default_launcher() if launch == "direct" else None)
         if self.launcher is not None:
             self.launcher = self.launcher.resolve(strict=True)
+        self.lock = Lock()
+        self.token = secrets.token_urlsafe(32)
+        self.targets = {}
+        self.root = None
+        self.state = None
         self.game_pid = None
+        self.revision = secrets.token_urlsafe(18)
         self.clients = 0
         self.seen_client = False
         self.last_client = time.time()
-        self.token = secrets.token_urlsafe(32)
-        self.lock = Lock()
+        if initial_map is not None:
+            self._activate(initial_map)
+
+    @staticmethod
+    def _key(path):
+        return os.path.normcase(str(path))
+
+    def _target_state(self, root):
+        key = sha256(os.fsencode(self._key(root))).hexdigest()[:20]
+        target_state = self.state_root / key
+        if not target_state.exists():
+            legacy = self.state_root / sha256(os.fsencode(str(root))).hexdigest()[:20]
+            if legacy.is_dir():
+                legacy.rename(target_state)
+            else:
+                target_state.mkdir(parents=True)
+        return target_state
+
+    def _activate(self, path):
+        path = test_map(path)
+        key = self._key(path)
+        entry = self.targets.get(key)
+        if entry is None:
+            entry = {"state": self._target_state(path), "game_pid": None}
+            self.targets[key] = entry
+        if self.root is not None:
+            self.targets[self._key(self.root)]["game_pid"] = self.game_pid
+        self.root = path
+        self.state = entry["state"]
+        self.game_pid = entry.get("game_pid")
+        return path
+
+    def current_info(self):
+        return {"map": str(self.root) if self.root else "",
+                "capabilities": {"selectTarget": True},
+                "targetRevision": self.revision}
+
+    def select_target(self, map_value, expected_revision):
+        with self.lock:
+            if expected_revision != self.revision:
+                raise PreviewError("PREVIEW_TARGET_CHANGED", "测试副本已切换，请重新打开预览并核对。")
+            if not isinstance(map_value, str) or not map_value.strip():
+                raise ValueError("请填写测试副本的完整目录路径。")
+            path = self._activate(map_value.strip())
+            self.revision = secrets.token_urlsafe(18)
+            save_map(path)
+            return {"map": str(self.root), "targetRevision": self.revision,
+                    "message": "已切换测试副本。"}
 
     def client_open(self):
         with self.lock:
@@ -261,6 +322,8 @@ class PreviewSession:
             raise ValueError("工作台页面缺少预览入口。")
         token = self.token.encode("ascii")
         marker = OFFLINE.replace(b'offline', token)
+        if b"/api/preview/events" in source:
+            return source.replace(OFFLINE, marker, 1)
         keepalive = b"""<script>
 (function(){
   var meta=document.querySelector('meta[name="sc2-preview-bridge"]');
@@ -272,15 +335,49 @@ class PreviewSession:
 </script>"""
         return source.replace(OFFLINE, marker + keepalive, 1)
 
-    def stage_preview(self, source, size, run):
+    def _conflicts(self, report):
+        try:
+            data = json.loads(report.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        kinds = {}
+        try:
+            manifest = json.loads((report.parent / "ui_manifest.json").read_text(encoding="utf-8"))
+            kinds = {item.get("mapPath"): item.get("type", "file")
+                     for item in manifest.get("files", []) if isinstance(item, dict)}
+        except (OSError, ValueError):
+            pass
+        rows = []
+        for row in data.get("files", []):
+            if row.get("action") == "conflict" and isinstance(row.get("path"), str):
+                item = {"path": row["path"], "kind": kinds.get(row["path"], "file"),
+                        "reason": "与已有文件或上次写入记录不一致"}
+                for field in ("sha256", "existingSha256", "previousSha256"):
+                    if isinstance(row.get(field), str):
+                        item[field] = row[field]
+                rows.append(item)
+        return rows
+
+    def stage_preview(self, source, size, run, revision):
         with self.lock:
+            if revision != self.revision:
+                raise PreviewError("PREVIEW_TARGET_CHANGED", "测试副本已切换，请重新打开预览并核对。")
+            if self.root is None or self.state is None:
+                raise PreviewError("PREVIEW_TARGET_CHANGED", "尚未选择测试副本，请先在实机预览中设置目标。")
             window = None
             if run and self.launch == "editor":
                 window = editor_window(self.root.stem)
                 verify_initialization(self.root)
             prior = sorted(self.state.glob("run-*/staged/stage-report.json"), key=lambda p: p.stat().st_mtime_ns)
-            previous = next((p for p in reversed(prior)
-                             if json.loads(p.read_text(encoding="utf-8")).get("state") == "staged"), None)
+            previous = None
+            for report_path in reversed(prior):
+                try:
+                    receipt = json.loads(report_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                if receipt.get("state") == "staged":
+                    previous = report_path
+                    break
             work = Path(tempfile.mkdtemp(prefix="run-", dir=self.state))
             bundle = work / "preview.zip"
             try:
@@ -291,9 +388,18 @@ class PreviewSession:
                             raise ValueError("预览包传输中断。")
                         output.write(data)
                         size -= len(data)
-                stage(SimpleNamespace(bundle=bundle,map_copy=self.root,evidence=work/"staged",
-                                      previous=previous,apply=True,preview=True,
-                                      replace_font_styles=self.replace_font_styles))
+                try:
+                    stage(SimpleNamespace(bundle=bundle, map_copy=self.root, evidence=work/"staged",
+                                          previous=previous, apply=True, preview=True,
+                                          replace_font_styles=self.replace_font_styles))
+                except ValueError as error:
+                    report = work / "staged" / "stage-report.json"
+                    conflicts = self._conflicts(report)
+                    if conflicts:
+                        raise PreviewError("MAP_FILE_CONFLICT",
+                                           "现有地图文件需要合并。没有地图文件被修改。",
+                                           report_path=str(report), conflicts=conflicts) from error
+                    raise
             finally:
                 bundle.unlink(missing_ok=True)
             if run:
@@ -309,6 +415,7 @@ class PreviewSession:
                         message = "已写入并启动游戏。若上一局仍在运行，启动器已尝试先结束它；切到游戏窗口确认画面。"
                 except (OSError, ValueError) as error:
                     raise ValueError(f"已写入测试副本。启动失败：{error}") from error
+                self.targets[self._key(self.root)]["game_pid"] = self.game_pid
                 return message
             return "已写入测试副本。点击「写入并测试」可直启游戏。"
 
@@ -367,7 +474,7 @@ class PreviewHandler(BaseHTTPRequestHandler):
             else:
                 self.send_content(200, "text/html; charset=utf-8", html)
         elif self.path == "/api/preview":
-            self.json_response(200, {"map":str(self.session.root)})
+            self.json_response(200, self.session.current_info())
         elif self.path == "/api/preview/version":
             self.json_response(200, {"version": VERSION})
         else:
@@ -382,20 +489,62 @@ class PreviewHandler(BaseHTTPRequestHandler):
         if not secrets.compare_digest(token.encode("utf-8"), self.session.token.encode("ascii")):
             self.json_response(403, {"message":"请通过「启动SC2 UI 工作台」打开页面后重试。"})
             return
+        if self.path == "/api/preview/target":
+            try:
+                size = int(self.headers.get("Content-Length", "0"))
+                if self.headers.get_content_type() != "application/json" or not 0 < size <= 16 * 1024:
+                    raise ValueError("请提交 JSON 格式的目标请求。")
+                body = json.loads(self.rfile.read(size).decode("utf-8"))
+                if not isinstance(body, dict) or set(body) - {"map", "targetRevision"}:
+                    raise ValueError("目标请求只能包含 map 和 targetRevision。")
+                result = self.session.select_target(body.get("map"), body.get("targetRevision"))
+            except PreviewError as error:
+                self.preview_error(error)
+                return
+            except (OSError, ValueError) as error:
+                self.json_response(409, {"message": str(error)})
+                return
+            self.json_response(200, result)
+            return
         if self.path not in {"/api/preview/stage", "/api/preview/run"}:
             self.json_response(404, {"message":"找不到此入口。"})
             return
+        revision = self.headers.get("X-SC2-Preview-Target-Revision", "")
+        size = 0
         try:
             size = int(self.headers.get("Content-Length", "0"))
             if self.headers.get_content_type() != "application/zip" or not 0 < size <= LIMIT + 2*1024**2:
                 raise ValueError("请提交工作台生成的 ZIP 预览包。")
             self.connection.settimeout(30)
-            message = self.session.stage_preview(self.rfile, size, self.path.endswith("/run"))
+            message = self.session.stage_preview(self.rfile, size, self.path.endswith("/run"), revision)
+        except PreviewError as error:
+            if error.code == "PREVIEW_TARGET_CHANGED":
+                self.drain_request(size)
+            self.preview_error(error)
         except (BadZipFile, OSError, ValueError, KeyError, TypeError, AttributeError, RuntimeError) as error:
             self.json_response(409, {"message": str(error)})
         else:
             self.json_response(200, {"message":message})
 
+    def drain_request(self, size):
+        """Finish reading a rejected upload so the 409 response survives HTTP/1.1."""
+        remaining = size
+        try:
+            while remaining > 0:
+                chunk = self.rfile.read(min(remaining, 64 * 1024))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+        except OSError:
+            pass
+
+    def preview_error(self, error):
+        payload = {"code": error.code, "message": str(error)}
+        if error.report_path:
+            payload["reportPath"] = error.report_path
+        if error.conflicts:
+            payload["conflicts"] = error.conflicts
+        self.json_response(error.status, payload)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -422,8 +571,11 @@ def main():
                      "如果 10 秒后仍未退出，请在任务管理器结束「启动SC2 UI 工作台」。")
         return
     try:
-        root = test_map(args.map_copy) if args.map_copy else None
-        if root is None:
+        initial = None
+        if args.map_copy:
+            initial = test_map(args.map_copy)
+            save_map(initial)
+        else:
             saved = None
             try:
                 saved = MAP_CONFIG.read_text(encoding="utf-8").strip()
@@ -431,21 +583,15 @@ def main():
                 pass
             if saved:
                 try:
-                    root = test_map(Path(saved))
+                    initial = test_map(Path(saved))
                 except (OSError, ValueError):
-                    root = None
-        if root is None:
-            chosen = choose_map()
-            if chosen is None:
-                return
-            root = test_map(chosen)
-        MAP_CONFIG.parent.mkdir(parents=True, exist_ok=True)
-        MAP_CONFIG.write_text(str(root), encoding="utf-8")
-        session = PreviewSession(root, state, args.replace_font_styles,
-                                 args.launch, args.launcher)
+                    initial = None
+        session = PreviewSession(state, args.replace_font_styles,
+                                 args.launch, args.launcher, initial_map=initial)
         with ThreadingHTTPServer(("127.0.0.1", args.port), partial(PreviewHandler,session=session)) as server:
             url = f"http://127.0.0.1:{server.server_port}/"
-            print(f"{url}\n测试副本：{session.root}", flush=True)
+            target = str(session.root) if session.root else "未选择（请在网页实机预览中设置）"
+            print(f"{url}\n测试副本：{target}", flush=True)
             threading.Thread(target=watch, args=(session, server), daemon=True).start()
             if not args.no_browser:
                 webbrowser.open(url)

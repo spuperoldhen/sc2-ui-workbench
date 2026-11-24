@@ -1,6 +1,6 @@
-# 实机预览基线 v1.0.6
+# 实机预览基线 v1.0.7
 
-冻结日期：2026-11-23。适用于工作台 `v1.0.6` 及之后的兼容更新。
+冻结日期：2026-11-24。适用于工作台 `v1.0.7` 及之后的兼容更新。
 
 ## 1. 边界
 
@@ -26,6 +26,13 @@
 | `openLivePreview` | 打开实机预览对话框 |
 | `livePreviewDialog` | 预览对话框 |
 | `livePreviewTarget` | 显示测试副本路径 |
+| `livePreviewTargetNotice` | 显示来源地图名不匹配或路径无效提示 |
+| `livePreviewConfirmRow` | 写入确认行；`livePreviewConfirmTarget` 是复选框 |
+| `livePreviewTargetOptions` | 「更换测试副本」折叠区 |
+| `livePreviewTargetPicker` | 新启动器才显示的目标路径输入区 |
+| `livePreviewTargetPath` | 测试副本完整目录路径 |
+| `livePreviewSetTarget` | 确认切换测试副本 |
+| `livePreviewLegacyTarget` | 旧启动器的手动换图指引 |
 | `livePreviewScope` | 显示合成画布/当前页范围 |
 | `livePreviewStatus` | 写入/启动结果 |
 | `downloadLivePreview` | 下载预览包 |
@@ -36,20 +43,36 @@
 
 必须保留的本地 API：
 
-- `GET /api/preview` → `{ "map": "<测试副本绝对路径>" }`
+- `GET /api/preview` → 旧启动器只返回 `{ "map": "<测试副本绝对路径>" }`；支持切换的新启动器返回：
+
+  ```json
+  {
+    "map": "<当前 -UI-Test 组件目录绝对路径，未选择时为空字符串>",
+    "capabilities": { "selectTarget": true },
+    "targetRevision": "<当前选择的非空、不透明修订号>"
+  }
+  ```
+
+  页面只在 `capabilities.selectTarget === true` 且 `targetRevision` 为非空字符串时启用目标选择器；否则显示旧版手动换图指引。
+- `POST /api/preview/target`
+  - `Content-Type: application/json`，请求体只能包含 `{"map": "<绝对路径>", "targetRevision": "<预期旧修订号>"}`，大小受限。
+  - 同一 `Origin`、`X-SC2-Preview-Token` 校验；在会话锁内校验目录真实存在、目录形态、`-UI-Test` 名称、`ComponentList.SC2Components`，拒绝链接/重解析点。
+  - 通过后更新目标并原子写 `map.txt`，返回 `{"map": "...", "targetRevision": "...", "message": "..."}`；旧修订号返回 409 `PREVIEW_TARGET_CHANGED`，未通过校验时不得改变现有目标或 `map.txt`。
+  - 该接口只切换目标，不写预览包、不启动客户端。
 - `POST /api/preview/stage`、`POST /api/preview/run`
   - `Content-Type: application/zip`
   - `Origin: http://127.0.0.1:<port>`
   - `X-SC2-Preview-Token: <meta token>`
-  - 成功 `200 {"message": "..."}`；失败 `4xx {"message": "..."}`
+  - 新启动器还必须带 `X-SC2-Preview-Target-Revision: <GET 返回的修订号>`；缺失或过期在读写地图/启动进程前返回 409 `PREVIEW_TARGET_CHANGED`。
+  - 成功 `200 {"message": "..."}`；普通失败 `4xx {"message": "..."}`；预检冲突返回 `409 {"code":"MAP_FILE_CONFLICT","message":"...","reportPath":"...","conflicts":[...]}`。
   - 请求体是页面生成的预览 ZIP，不能改成 JSON 或分片上传。
 - `GET /api/preview/events?token=<meta token>` → `text/event-stream`
-  - 启动器在返回的 HTML 里自动注入 `new EventSource(...)`；页面本身不需要写保活代码，只要保留 `sc2-preview-bridge` meta。
+  - 新页面可以自己创建 EventSource（当前 `index.html` 即如此）；旧页面或未自带保活代码的页面由启动器注入。两种方式都只使用 `sc2-preview-bridge` meta 中的 token。
   - 服务端每 5 秒发一次注释保活；最后一个连接断开后 8 秒，无窗口服务自动退出并释放端口；启动后 120 秒内没有任何连接则退出。
 - `GET /api/preview/version` → `{ "version": "..." }`
   - 启动器用它判断 8765 上是否已有同版本服务；版本不同时会提示关闭旧页面，而不是静默打开旧服务。
 
-页面不得硬编码端口、token 或测试副本路径；全部通过同源相对 `/api/preview` 和 `/api/preview` 返回的 `map` 获取。页面只需要保留 `sc2-preview-bridge` meta；EventSource 由启动器注入。
+页面不得硬编码端口、token 或测试副本路径；全部通过同源相对 `/api/preview` 和 `/api/preview` 返回的 `map` 获取。保留 `sc2-preview-bridge` meta；目标切换必须使用 `targetRevision`，不得自行维护第二套路径状态。
 
 ## 3. `ui_manifest.json` 契约
 
@@ -96,6 +119,8 @@
 
 - 目录名以 `-UI-Test` 结尾，例如 `黄金矿工-UI-Test.SC2Map`。
 - 目录内必须有 `ComponentList.SC2Components`。
+- 必须是目录形态的组件地图；打包地图文件、链接、junction 或其他重解析点会被拒绝。
+- 每个规范化目标路径各自保存写入记录、备份、`stage-report.json` 和上一局 PID；切换目标不继承另一张地图的 ownership。
 - `MapScript.galaxy` 中恰好一次：
   - `include "Scripts/SC2WorkbenchPreview"`
   - `SC2WorkbenchPreview_Init();`
@@ -106,7 +131,7 @@
 
 - 默认 `--launch direct`：
   - 写预览包、补齐 include/InitMap、调用 `Support64\SC2Switcher_x64.exe -run "<地图>" -displaymode 0`。
-  - 上一局由启动器记录的 PID 会被尝试结束。
+  - 只尝试结束当前目标由启动器记录、且仍存在的 SC2 进程；不按进程名批量结束。
   - 不能直接运行 `SC2_x64.exe`，会缺 `icuuc52.dll`。
 - `--launch editor`：
   - 测试副本已在银河编辑器打开并保存。
@@ -120,6 +145,8 @@
 
 - 保持 `Scripts/SC2WorkbenchPreview.galaxy`、`SC2WorkbenchPreview_Init`、页面 ID、`/api/preview` 路径、`preview` 字段名稳定。
 - 新增字段必须向后兼容；删除/重命名脚本、入口、页面 ID 或 API 属于破坏性变更，需要升版本并同步工作台启动器与 exe。
+- 旧启动器 + 新网页：GET 只有 `map`，网页显示旧版手动换图指引，stage/run 不带修订号；这是支持的兼容路径。
+- 新启动器 + 旧网页：新启动器拒绝缺少 `X-SC2-Preview-Target-Revision` 的 stage/run，避免写入可变目标；因此新 exe 必须配套新版 `index.html` 发布。
 - 本地 exe 放在工作台根目录时：`index.html` **每次请求都读取**，替换后刷新页面即生效，不用重启；`stage.py` 在启动时加载，替换后重启 exe；`tools/live_preview.py` 和 `tools/launch_test_game.py` 是冻结代码，改动需要重新打包。脱离工作台单独放置时使用 exe 内置的同一版本。
 - 每次网页端交付后，至少跑一次「合成画布开」「合成画布关」两轮实机验收。
 
@@ -130,6 +157,11 @@
 - [ ] 脚本内没有 `gv_`、触发器或 GUI 变量引用。
 - [ ] 页面「写入并测试」能直启游戏，状态栏出现成功消息。
 - [ ] 同一副本改脚本后重开能读到新内容。
+- [ ] A/B 两个 `-UI-Test` 副本可切换；GET 路径、修订号、`map.txt` 同步更新，A 的文件哈希不变。
+- [ ] 切换到 B 后重开只使用 B；切回 A 使用 A 自己的写入记录。
+- [ ] 正式地图、文件形态地图、缺少组件清单、链接/重解析点、旧修订号均被拒绝，且不修改地图。
+- [ ] 两个标签页同时打开时，切换后旧标签的 stage/run 返回 409 `PREVIEW_TARGET_CHANGED`。
+- [ ] 冲突返回实际 `conflicts` 和 `reportPath`，预检失败不留下部分写入。
 - [ ] 页面没有 `TextError` 级别的文本错误。
 
 ## 8. 已知问题

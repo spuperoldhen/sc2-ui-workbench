@@ -169,7 +169,9 @@ def stage(options):
                     and target.name.casefold() == "fontstyles.sc2style"):
                 replace = True
             action = "replace" if replace else "conflict"
-        report["files"].append({"path": relative, "action": action, "sha256": digest(new)})
+        report["files"].append({"path": relative, "action": action, "sha256": digest(new),
+                                "existingSha256": digest(old) if old is not None else None,
+                                "previousSha256": prior.get(relative)})
         if action in {"create", "replace"}:
             changes.append((relative, target, old, new))
     out.mkdir(parents=False, exist_ok=False)
