@@ -1015,7 +1015,7 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
     <button type="button" id="openCommands" class="quiet" aria-haspopup="dialog">命令 <kbd id="commandKey">Ctrl K</kbd></button>
     <button type="button" id="openThemes" class="quiet" aria-haspopup="dialog" aria-label="工作台主题"><span id="themeName">石墨</span></button>
     <details class="file-menu"><summary id="fileSummary">项目</summary><div class="menu-items">
-    <button type="button" class="quiet" id="newProject">新建空白</button><button type="button" class="quiet" id="resetDemo">载入示例</button><button type="button" class="quiet" id="openMapFolder">导入 SC2Components</button><button type="button" class="quiet" id="openMapReturn">导出地图回导包</button><button type="button" class="quiet" id="openGalaxyImport">导入银河 GUI 布局</button><button type="button" class="quiet" id="importProject">打开项目 JSON</button><button type="button" class="quiet" id="saveProject">保存项目 JSON</button>
+    <button type="button" class="quiet" id="newProject">新建空白</button><button type="button" class="quiet" id="resetDemo">载入示例</button><button type="button" class="quiet" id="openMapFolder">导入 SC2Components</button><button type="button" class="quiet" id="openMapReturn">回导地图</button><button type="button" class="quiet" id="openGalaxyImport">导入银河 GUI 布局</button><button type="button" class="quiet" id="importProject">打开项目 JSON</button><button type="button" class="quiet" id="saveProject">保存项目 JSON</button>
     <button type="button" class="quiet" id="convertDdsFile">图片转 DDS</button>
   </div></details></div>
 </header>
@@ -1082,7 +1082,7 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
       <p id="layerEmpty" class="layer-empty" data-layer-pane role="status" hidden></p>
       <div id="layers" class="layer-tree" data-layer-pane></div>
       <section id="variablePane" class="variable-pane" aria-label="全局变量" hidden>
-        <div class="variable-tools"><input id="variableFilter" type="search" placeholder="搜索名称 / 脚本标识符" aria-label="搜索变量" autocomplete="off" spellcheck="false"><select id="variableScope" aria-label="变量范围"><option value="used">已引用 / 已编辑 · 全项目</option><option value="all">所有已识别全局变量</option><option value="current">当前对话框引用</option></select><div class="variable-actions"><button id="addVariableDefinition" type="button">＋ 新建变量</button><button id="readMapVariables" type="button" title="从原地图的 Triggers、TriggerStrings 和 Galaxy 声明读取变量资料，不替换当前布局">读取地图变量</button></div><input id="mapVariableFolderInput" type="file" webkitdirectory multiple hidden></div>
+        <div class="variable-tools"><input id="variableFilter" type="search" placeholder="搜索名称 / 脚本标识符" aria-label="搜索变量" autocomplete="off" spellcheck="false"><select id="variableScope" aria-label="变量范围"><option value="all" selected>所有已识别全局变量</option><option value="used">已引用 / 已编辑 · 全项目</option><option value="current">当前对话框引用</option></select><div class="variable-actions"><button id="addVariableDefinition" type="button">＋ 新建变量</button><button id="readMapVariables" type="button" title="从原地图的 Triggers、TriggerStrings 和 Galaxy 声明读取变量资料，不替换当前布局">读取地图变量</button></div><input id="mapVariableFolderInput" type="file" webkitdirectory multiple hidden></div>
         <p id="variableCount" class="variable-note" role="status"></p>
         <div id="variableList" class="variable-list"></div>
         <p class="variable-note">点击引用定位控件，点击编辑修改变量。地图变量声明需在 GUI 中同步。</p>
@@ -1130,7 +1130,7 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
   <div class="modal-body">
     <div class="form-field"><label for="variableDisplayName">GUI 本地化名称</label><input id="variableDisplayName" maxlength="120"></div>
     <div class="form-field"><label for="variableIdentifier">完整 Galaxy 标识符 / 结构体成员路径</label><input id="variableIdentifier" maxlength="256" spellcheck="false" placeholder="gv_UI.Items"><small>不含数组索引。使用点号表示结构体成员。</small></div>
-    <div class="form-field"><label for="variableType">类型（GUI 或 Galaxy 类型）</label><input id="variableType" maxlength="100" placeholder="int / dialogcontrol"></div>
+    <div class="form-field"><label for="variableType">类型</label><select id="variableType" aria-label="变量类型"></select></div>
     <div class="form-field"><label for="variableDimensions">各层数组长度</label><input id="variableDimensions" maxlength="256" placeholder="— / 8, 16"><small>每个路径层用 / 分隔，单个变量写 —，多维用逗号分隔。填长度（不是最大索引）。例如 gv_UI.Cards：— / 8。</small></div>
     <div class="form-field"><label for="variableInitialValue">初始值（Galaxy / GUI 声明备注）</label><textarea id="variableInitialValue" rows="3" maxlength="2048" spellcheck="false" placeholder="0 或原地图表达式"></textarea><small>初始值随项目及普通回导清单保存；不会在实机预览执行。</small></div>
     <details class="form-field" id="variableIndexedInitSection"><summary>数组元素初始值（可选）</summary><textarea id="variableInitialAssignments" aria-label="数组元素初始值" rows="4" maxlength="16000" spellcheck="false" placeholder="gv_Cards[1] = 0"></textarea><small>每行填写一个带索引的变量引用 = 初始值。自动同步标识符改名；这些值仅记录到普通回导清单，需在地图 GUI 中确认。</small></details>
@@ -1306,7 +1306,7 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
           <li><strong>保存到本地。</strong>在「项目管理」点「保存当前」。首次会引导选择目录，也可用「项目 → 保存项目 JSON」下载备份。</li>
           <li><strong>从模板开始。</strong>在「布局模板」里先看效果，再添加到当前项目。常用的对话框可存为自定义模板。</li>
           <li><strong>合成画布默认关闭。</strong>只显示当前对话框页。开启对话框栏的「合成画布」后，可同时检查所有对话框；实机预览和预览包也随该开关选择当前页或全部。</li>
-          <li><strong>查找全局变量。</strong>在左侧切换「全局变量」，按本地化名称或脚本标识符搜索，展开结构体查看成员。点击引用跳转到对应对话框或控件；编辑名称、标识符、结构体成员、数组及初始值，保存后工作台引用会同步更新。「导出检查」会核对已知声明的类型和索引范围。旧项目可点「读取地图变量」选择原地图文件夹补齐名称，原布局保留。实际地图 GUI 声明仍需按普通回导清单同步。</li>
+          <li><strong>查找全局变量。</strong>在左侧切换「全局变量」，按本地化名称或脚本标识符搜索，展开结构体查看成员。点击引用跳转到对应对话框或控件；编辑名称、标识符、结构体成员、数组及初始值，保存后工作台引用会同步更新。「导出检查」会核对已知声明的类型和索引范围。旧项目可点「读取地图变量」选择原地图文件夹补齐名称，原布局保留。确认变量后，用「项目 → 回导地图」生成带真实 GUI 变量的地图副本。</li>
           <li><strong>更新地图素材。</strong>从回导窗口点「重新连接地图文件夹」，可重新读取文本和贴图。要导入另一张地图，用「项目 → 导入 SC2Components」打开独立项目。</li>
         </ul>
       </section>
@@ -1369,7 +1369,8 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
 
       <section id="tutorialVariables" class="tutorial-step" data-tutorial-page hidden>
         <h3 tabindex="-1">在银河编辑器建立全局变量</h3>
-        <p>打开一张测试地图，按 <kbd>F6</kbd> 打开触发器编辑器。在左侧触发器树里右键，选「新建 → 新建变量（New Variable）」。对照工作台的「2 · GUI 变量清单」创建三个全局变量。</p>
+        <p>使用组件地图时，在「项目 → 回导地图」选择原地图并生成副本，启用 GUI 绑定的变量会随副本复用或创建；用银河编辑器打开副本的 ComponentList 并保存一次，按 <kbd>F6</kbd> 即可在触发器树看到变量。复杂旧地图无法确定替换范围时，可只生成「仅同步全局变量」副本，再手工接入界面创建。</p>
+        <p>手动接入时，打开一张测试地图，按 <kbd>F6</kbd> 打开触发器编辑器。在左侧触发器树里右键，选「新建 → 新建变量（New Variable）」。对照工作台的「2 · GUI 变量清单」创建三个全局变量。</p>
         <figure class="tutorial-figure">
           <div class="tutorial-mock" aria-hidden="true">
             <div class="tutorial-mock-bar">触发器编辑器 <span>全局变量</span></div>
@@ -1524,9 +1525,16 @@ gv_TutorialButton = TutorialUI_Button_2;</code></pre>
   </div>
 </dialog>
 <dialog id="mapReturnDialog" aria-labelledby="mapReturnTitle">
-  <header class="modal-head"><h2 id="mapReturnTitle">导出地图回导包</h2><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
+  <header class="modal-head"><h2 id="mapReturnTitle">回导地图</h2><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
   <div class="modal-body">
-    <p>可把项目 JSON 或回导 ZIP 和测试地图副本交给本地 agent，使用 <code>$sc2-galaxy-bridge</code> 导出、回导并校验编译。控件用途与事件需求在右侧「绑定 → 本地 agent 接入」填写。</p>
+    <p>生成可在银河编辑器打开的地图副本。启用 GUI 绑定的变量会复用或创建为真正的触发器全局变量；重导布局时会尝试接到原 UI 创建动作。</p>
+    <div class="export-actions">
+      <button id="chooseGuiMapSource" type="button">选择目标地图</button>
+      <select id="guiMapCopyMode" aria-label="回导内容"><option value="layout">回导界面和变量</option><option value="variables">仅同步全局变量</option></select>
+      <button id="writeGuiMapCopy" class="primary" type="button">生成地图副本</button>
+    </div>
+    <input id="guiMapSourceInput" type="file" webkitdirectory multiple hidden>
+    <p id="guiMapCopyStatus" role="status"></p>
     <p id="mapReturnStatus" role="status"></p>
     <div id="mapReturnFiles" class="audit-table"></div>
     <div id="mapReturnTextures" class="audit-table"></div>
@@ -2100,7 +2108,7 @@ const styleExamples = {
   "":"映射到游戏默认样式", ModCenterSize16:"战役样式示例 · 居中 16"
 };
 const STORE_KEY = "sc2-dialog-workbench-v1";
-const workbenchVersion = "1.0.7";
+const workbenchVersion = "1.0.8";
 const autoSelectDialogsKey = STORE_KEY+"-auto-select-dialogs";
 const tourKey = STORE_KEY+"-quick-start";
 const tourSteps = [
@@ -3692,7 +3700,7 @@ function boundsForSelection(part) {
   return {x:Math.min(...rects.map(({x})=>x)),y:Math.min(...rects.map(({y})=>y))};
 }
 function openCrossCopy() {
-  const choices=workspace.dialogs.filter(({id})=>id!==activeDialog).map(({id,layout})=>[String(id),layout.root.name+" · "+layout.prefix]);
+  const choices=workspace.dialogs.filter(({id})=>id!==activeDialog).map(({id,layout})=>[String(id),guiNodeCaption(layout.root,workspace)+" · "+layout.prefix]);
   if (!choices.length || !selected) return;
   componentSelect($("crossCopyTarget"),choices,choices[0][0]);
   $("crossCopyStatus").textContent="组内附着和相对位置会保留，副本的 GUI 绑定为空。";
@@ -4029,7 +4037,7 @@ let pendingMapFolder = null;
 let connectedMapFolder = null;
 const mapConnections = new Map();
 let componentAssets = new Map();
-let mapReturnPlan = null;
+let mapReturnPlan = null, guiMapTarget = null;
 let mapReturnRequest = 0;
 
 function componentRelativePath(path) {
@@ -4139,7 +4147,8 @@ async function scanComponentFolder(files,{assetsOnly=false}={}) {
   const folder={name,entries,index,triggers,script,pictures,fontFiles,layouts,texts,unreadTexts,fonts,locales,signature,issues,aliases,assetsOnly};
   if (triggers) {
     try {
-      folder.variableElements=readGuiVariableElements((await readComponentText(triggers)).text);
+      folder.triggerSource=await readComponentText(triggers,32*1024*1024);
+      folder.variableElements=readGuiVariableElements(folder.triggerSource.text);
     } catch (error) { issues.push("GUI 变量名称："+error.message); }
   }
   if (script) {
@@ -4448,6 +4457,327 @@ function buildComponentReturn(project,folder,resources,exported,previewScope=nul
   const textures=resources.filter(({kind})=>kind==="贴图").map((row)=>({...row,...textureReturnInfo(row.value,folder)}));
   return {...plan,textures,manifest:buildAgentManifest(project,plan,resources,packagedResources)};
 }
+function guiRowsFor(project) {
+  const rows=new Map();
+  for (const symbol of project.guiSymbols || []) {
+    if (symbol?.name) rows.set(symbol.name,{name:symbol.name,guiName:symbol.guiName,type:symbol.type});
+  }
+  for (const entry of project.variableDefinitions || []) {
+    const before=rows.get(entry.name) || {name:entry.name};
+    rows.set(entry.name,{...before,...entry,
+      guiName:entry.displayName || before.guiName,
+      type:entry.guiType || entry.galaxyType || before.type});
+  }
+  return rows;
+}
+function guiSavedEdits(project) {
+  const symbols=new Map((project.guiSymbols || []).map((row)=>[row.name,row]));
+  return new Map((project.variableDefinitions || []).filter((entry)=>entry.edited).map((entry)=>{
+    const symbol=symbols.get(entry.name);
+    const type=[entry.guiType,entry.galaxyType,symbol?.type].find((value)=>guiCreatableTypes.has(value)) || "";
+    const leaf=(entry.dimensions?.at(-1) || []).map((size)=>/^\d+$/.test(size) ? Number(size) : null);
+    return [entry.name,{name:entry.name,guiName:entry.displayName || "",type,dimensions:leaf,
+      identity:entry.guiIdentity || symbol?.identity || "",
+      ...(entry.initialChanged && entry.initialValue ? {initialMode:"value",initial:entry.initialValue} : {}),
+      ...(entry.originalName ? {originalName:entry.originalName} : {})}];
+  }));
+}
+const guiMapIncludeMarker="// SC2UIWorkbench: include";
+const guiMapActionMarker="// SC2UIWorkbench: initialize";
+const guiHandlePresets={dialog:"B76A7F2A",control:"FAC49C47"};
+function guiXmlNode(xml,tag,attributes={},value) {
+  const node=xml.createElement(tag);
+  for (const [name,content] of Object.entries(attributes)) node.setAttribute(name,content);
+  if (value!==undefined) node.textContent=value;
+  return node;
+}
+function guiTriggerWriter(xml) {
+  const used=new Set([...xml.querySelectorAll("[Id]")].map((node)=>node.getAttribute("Id").toUpperCase()));
+  const data=xml.documentElement;
+  let root=triggerChild(data,"Root");
+  if (!root) {
+    root=guiXmlNode(xml,"Root");
+    data.insertBefore(root,triggerChild(data,"Element") || null);
+  }
+  function element(type,container=data) {
+    let id;
+    do { id=crypto.getRandomValues(new Uint32Array(1))[0].toString(16).toUpperCase().padStart(8,"0"); }
+    while (used.has(id));
+    used.add(id);
+    const node=guiXmlNode(xml,"Element",{Type:type,Id:id});
+    container.append("\n    ",node,"\n");
+    return node;
+  }
+  function ref(parent,tag,node,library="") {
+    const attributes={Type:node.getAttribute("Type"),...(library ? {Library:library} : {}),Id:node.getAttribute("Id")};
+    parent.append(guiXmlNode(xml,tag,attributes));
+  }
+  return {element,ref,root,data};
+}
+function guiExplicitIdentifier(xml,row,name) {
+  const prefix=row.parent ? "" : row.library ? "lib"+row.library+"_gv_" : "gv_";
+  const raw=name.split(".").at(-1);
+  const identifier=raw.slice(prefix.length);
+  if (!/^[a-z_]\w*$/i.test(identifier) || !raw.startsWith(prefix)) throw new Error("无法保留「"+name+"」的脚本标识符。");
+  let entry=triggerChild(row.element,"Identifier");
+  if (!entry) {
+    entry=guiXmlNode(xml,"Identifier");
+    row.element.prepend(entry);
+  }
+  entry.textContent=identifier;
+}
+function guiSetVariableShape(xml,row,type,dimensions,changeType,changeDimensions) {
+  const shape=triggerChild(row.element,"VariableType");
+  if (changeType) triggerChild(shape,"Type").setAttribute("Value",type);
+  if (changeDimensions) {
+    triggerChildren(shape,"ArraySize").forEach((child)=>child.remove());
+    dimensions.forEach((size,i)=>shape.append(guiXmlNode(xml,"ArraySize",{Dim:i,Value:size-1})));
+  }
+}
+function guiSetVariableInitial(xml,writer,row,type,edit,isNew) {
+  if (!edit?.initialMode && !isNew) return;
+  const old=triggerChild(row.element,"Value");
+  old?.remove();
+  const preset=guiHandlePresets[type];
+  if (!preset && edit?.initialMode!=="value") return;
+  const container=row.element.parentElement;
+  const parameter=writer.element("Param",container);
+  if (preset) parameter.append(guiXmlNode(xml,"Preset",{Type:"PresetValue",Library:"Ntve",Id:preset}));
+  else {
+    const value=guiLiteral(type,edit.initial);
+    if (value!=="") parameter.append(guiXmlNode(xml,"Value",{},value));
+    parameter.append(guiXmlNode(xml,"ValueType",{Type:type}));
+  }
+  writer.ref(row.element,"Value",parameter,row.library);
+}
+function guiLiteral(type,raw) {
+  if (type==="string" || type==="text") return raw;
+  const value=String(raw || "").trim();
+  if (type==="bool" && /^(true|false|真|假)$/i.test(value)) return /^(true|真)$/i.test(value)?"true":"false";
+  if (type==="int" && /^[+-]?\d+$/.test(value) && Number(value)>=-2147483648 && Number(value)<=2147483647) return String(Number(value));
+  if (type==="fixed" && /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(value) && Number.isFinite(Number(value))) return value;
+  throw new Error("请输入有效的「"+guiTypeLabel(type)+"」初始值。");
+}
+function guiReturnVariables(xml,writer,index,folder,locale,project,required,declared,saved,projected) {
+  const variables=new Map((required || []).map((row)=>[row.galaxyName,row]));
+  for (const row of saved.values()) if (!variables.has(row.name)) variables.set(row.name,null);
+  const localized=triggerLocaleValues(folder,locale),changes=new Map();
+  let created=0,reused=0,updated=0;
+  const editsByIdentity=new Map();
+  for (const [name,need] of variables) {
+    const edit=saved.get(name),segmentLengths=need?.segmentDimensions;
+    const needed=need?.minimumArrayLengths || [];
+    const requiredType=guiTypeIds.get(need?.guiType);
+    const row=index.resolve(name);
+    const warnings=()=>new Error("「"+guiRowLabel(projected.get(name) || {name})+"」的变量类型或数组长度与界面绑定不一致。");
+    if (row) {
+      if (edit?.identity && edit.identity!==row.identity) throw new Error("变量「"+name+"」在目标地图中的身份已改变。");
+      if (edit && editsByIdentity.has(row.identity)) throw new Error("多个结构体实例编辑了同一个成员，请合并为一次修改。");
+      if (edit) editsByIdentity.set(row.identity,true);
+      const editType=edit?.type && guiCreatableTypes.has(edit.type) ? edit.type : "";
+      const editDimensions=edit?.dimensions?.length ? edit.dimensions : null;
+      const typeChanged=Boolean(editType && editType!==row.type);
+      const dimensionsChanged=Boolean(editDimensions && JSON.stringify(editDimensions)!==JSON.stringify(row.dimensions));
+      const resultingType=typeChanged ? editType : row.type;
+      if (need && requiredType && resultingType!==requiredType) throw warnings();
+      const dimensions=dimensionsChanged ? editDimensions : row.dimensions;
+      if (need) {
+        let offset=0;
+        for (const [i,level] of row.levels.entries()) {
+          const length=segmentLengths ? segmentLengths[i] : needed.length;
+          const actual=i===row.levels.length-1 ? dimensions : level.dimensions;
+          if (actual.length!==length || actual.some((size,j)=>size!==null && size<needed[offset+j])) throw warnings();
+          offset+=length;
+        }
+      }
+      if (edit) {
+        if ((typeChanged || dimensionsChanged) && (!guiCreatableTypes.has(resultingType) || dimensions.some((size)=>size===null))) throw warnings();
+        if (typeChanged || dimensionsChanged) {
+          const references=[...xml.querySelectorAll('[Type="Variable"]')].some((node)=>
+            !["Item","Element"].includes(node.tagName) && node.getAttribute("Id")?.toUpperCase()===row.element.getAttribute("Id").toUpperCase() &&
+            (node.getAttribute("Library") || node.closest("Library")?.getAttribute("Id") || "")===row.library);
+          if (references || declared.has(name.split(".")[0])) throw new Error("「"+name+"」已被地图使用。保留原有类型和数组长度，避免破坏既有引用。");
+          guiSetVariableShape(xml,row,resultingType,dimensions,typeChanged,dimensionsChanged);
+        }
+        guiSetVariableInitial(xml,writer,row,resultingType,edit,false);
+        if (edit.guiName && edit.guiName!==localized.get(row.key.toLowerCase())) {
+          if (!triggerChild(row.element,"Identifier")) guiExplicitIdentifier(xml,row,name);
+          changes.set(row.key,edit.guiName);
+        }
+        updated++;
+      } else reused++;
+      continue;
+    }
+    if (declared.has(name.split(".")[0]) || name.includes(".") || !/^gv_[A-Za-z_]\w*$/.test(name) || edit?.identity) {
+      throw new Error("在目标地图里无法定位「"+name+"」的原变量或结构体。请选择原地图或绑定已有变量。");
+    }
+    const variableType=edit?.type && guiCreatableTypes.has(edit.type) ? edit.type : requiredType;
+    const dimensions=edit?.dimensions?.length ? edit.dimensions : needed;
+    if (!guiCreatableTypes.has(variableType) || need && (variableType!==requiredType || dimensions.length!==needed.length ||
+        dimensions.some((size,i)=>size===null || size<needed[i]))) throw warnings();
+    const node=writer.element("Variable");
+    const newRow={element:node,library:""};
+    guiExplicitIdentifier(xml,newRow,name);
+    const shape=guiXmlNode(xml,"VariableType");
+    shape.append(guiXmlNode(xml,"Type",{Value:variableType}));
+    node.append(shape);
+    guiSetVariableShape(xml,newRow,variableType,dimensions,false,true);
+    guiSetVariableInitial(xml,writer,newRow,variableType,edit,true);
+    writer.ref(writer.root,"Item",node);
+    changes.set("Variable/Name/"+node.getAttribute("Id"),edit?.guiName || guiRowLabel(projected.get(name) || {name}));
+    created++;
+  }
+  return {created,reused,updated,changes};
+}
+function importedGuiActionAnchor(index,folder,project) {
+  const sources=project.componentSource;
+  if (!sources) return null;
+  const selected=sources.functions.map((name)=>name.match(/（([^（）]+)）$/)?.[1] || name);
+  const scan=folder.scanned;
+  const chosen=selected.length===1 && scan?.sections.find(({name})=>name===selected[0]);
+  if (selected.length!==1) {
+    throw new Error("地图中有 "+selected.length+" 个候选 UI 创建函数，无法确定要替换哪一个。请只导入一个创建函数，或使用「仅同步全局变量」。");
+  }
+  if (!chosen) throw new Error("没有找到创建函数「"+selected[0]+"」对应的触发器。可先生成变量同步副本。");
+  const results=index.triggerNames.get(chosen.name);
+  const standardGuard=/^\s*if\s*\(\s*(?:!runActions|testConds\s*&&\s*!\w+_Conditions\s*\(\s*\))\s*\)\s*\{\s*return\s+(?:true|false)\s*;\s*$/;
+  if (!results) throw new Error("地图触发器树里没有与「"+chosen.name+"」对应的触发器。可先生成变量同步副本。");
+  if (results.library) throw new Error("「"+chosen.name+"」位于触发器物库中，暂不自动改写。可先生成变量同步副本。");
+  if (chosen.skipped.length || (chosen.nestedBlocks || []).some((block)=>!standardGuard.test(block))) {
+    throw new Error("原 UI 创建函数「"+chosen.name+"」含有条件或循环，暂不自动替换。可先生成变量同步副本。");
+  }
+  const nativeUi=/^(?:Dialog(?:Control)?(?:Create|Set|Attach|AddItem|SelectItem)|libNtve_gf_(?:CreateDialogItem|SetDialogItem|ShowHideDialog))/;
+  const code=chosen.statements.map(({code})=>code);
+  let creates=0;
+  const locals=new Set();
+  for (const statement of code) {
+    if (/^return true$/.test(statement)) continue;
+    const call=galaxyImportCall(statement);
+    if (call && nativeUi.test(call.name)) {
+      if (call.name==="DialogCreate") creates++;
+      continue;
+    }
+    const declaration=statement.match(/^int\s+(lv_\w+)$/);
+    if (declaration) { locals.add(declaration[1]);continue; }
+    const assignment=galaxyImportAssignment(statement);
+    if (assignment && (/^Dialog(?:Control)?LastCreated\(\s*\)$/.test(assignment.value) ||
+      locals.has(assignment.value) && parseBinding(assignment.target))) continue;
+    throw new Error("原 UI 触发器含其他动作。可先生成变量同步副本，原玩法动作会保留。");
+  }
+  const actions=triggerChildren(results.element,"Action");
+  const importedCount=project.layoutBaseline?.dialogs?.length;
+  if (!creates || creates!==importedCount || !actions.length || actions.some((node)=>node.getAttribute("Type")!=="FunctionCall")) {
+    throw new Error("无法确认原创建动作与导入布局一一对应。可先生成变量同步副本。");
+  }
+  return results.element;
+}
+function guiWireLayout(xml,writer,index,folder,project,exported,names) {
+  const direct=triggerChildren(writer.data,"Element");
+  const scriptSection=(marker)=>direct.find((node)=>triggerChild(node,"ScriptCode")?.textContent.trimStart().startsWith(marker));
+  let code=scriptSection(guiMapIncludeMarker),action=scriptSection(guiMapActionMarker);
+  if (Boolean(code)!==Boolean(action)) throw new Error("目标副本只保留了部分工作台初始化记录。");
+  if (!code) {
+    if (folder.entries.has(componentScriptPath.toLowerCase())) throw new Error("地图中已有同名 UI 脚本。请选择原图或含完整回导记录的副本。");
+    const anchor=importedGuiActionAnchor(index,folder,project);
+    const trigger=anchor || writer.element("Trigger");
+    if (!anchor) {
+      const event=writer.element("FunctionCall");
+      event.append(guiXmlNode(xml,"FunctionDef",{Type:"FunctionDef",Library:"Ntve",Id:"00000120"}));
+      writer.ref(writer.root,"Item",trigger);
+      writer.ref(trigger,"Event",event);
+      names.set("Trigger/Name/"+trigger.getAttribute("Id"),"初始化工作台界面");
+    }
+    action=writer.element("FunctionCall");
+    action.append(guiXmlNode(xml,"FunctionDef",{Type:"FunctionDef",Library:"Ntve",Id:"00000123"}));
+    if (anchor) triggerChildren(trigger,"Action").forEach((node)=>node.remove());
+    writer.ref(trigger,"Action",action);
+    code=writer.element("CustomScript");
+    writer.ref(writer.root,"Item",code);
+    names.set("CustomScript/Name/"+code.getAttribute("Id"),"工作台界面脚本");
+  }
+  triggerChild(code,"ScriptCode")?.remove();
+  code.append(guiXmlNode(xml,"ScriptCode",{},"\n"+guiMapIncludeMarker+"\n"+returnInclude+"\n"));
+  triggerChild(action,"ScriptCode")?.remove();
+  action.append(guiXmlNode(xml,"ScriptCode",{},"\n"+guiMapActionMarker+"\n"+exported.init+"\n"));
+}
+async function prepareGuiMapCopy(project,folder,plan,includeLayout) {
+  if (!folder.index || !folder.triggers || !folder.triggerSource) throw new Error("请选择包含 ComponentList 和可读取 Triggers 的地图组件文件夹。");
+  if (includeLayout && !plan.ready || plan.exported.blocked) throw new Error("请先处理回导前核对列出的导出错误。");
+  const locale=project.componentSource?.locale || folder.locales.find((tag)=>tag==="zhCN") || folder.locales[0] || "zhCN";
+  const xml=triggerXmlDocument(folder.triggerSource.text);
+  const declared=new Set(folder.scanned?.declarations?.globals?.keys() || []);
+  const index=triggerGuiIndex(xml,triggerLocaleValues(folder,locale),declared);
+  const writer=guiTriggerWriter(xml);
+  const result=guiReturnVariables(xml,writer,index,folder,locale,project,plan.manifest.variables,declared,
+    guiSavedEdits(project),guiRowsFor(project));
+  const {changes}=result;
+  if (includeLayout) guiWireLayout(xml,writer,index,folder,project,plan.exported,changes);
+  const files=new Map([...folder.entries].map(([key,{path,file}])=>[key,{path,payload:file}]));
+  function replace(path,payload) {
+    const key=path.toLowerCase();
+    files.set(key,{path:files.get(key)?.path || path,payload});
+  }
+  if (includeLayout) {
+    for (const row of plan.rows) {
+      const payload=row.convert ? await convertComponentImage(row.payload) : row.payload;
+      replace(row.path,payload);
+    }
+  }
+  if (changes.size) {
+    if (folder.unreadTexts.some((entry)=>/(^|\/)TriggerStrings\.txt$/i.test(entry.path))) throw new Error("地图中有无法读取的触发器语言文件。");
+    const translations=folder.texts.filter(({path})=>/(^|\/)TriggerStrings\.txt$/i.test(path));
+    const selected=translations.find((entry)=>entry.locale===locale) || translations.find((entry)=>!entry.locale);
+    const targetPath=selected?.path || locale+".SC2Data/LocalizedData/TriggerStrings.txt";
+    const isGuiName=(key)=>/^(?:Variable|Trigger|CustomScript)\/Name\//i.test(key);
+    for (const entry of [...translations,...(selected ? [] : [{path:targetPath,text:"",values:new Map()}])]) {
+      const existingKeys=new Map([...entry.values.keys()].map((key)=>[key.toLowerCase(),key]));
+      const edits=new Map();
+      for (const [key,value] of changes) {
+        if (!isGuiName(key)) continue;
+        const existing=existingKeys.get(key.toLowerCase());
+        if (entry.path===targetPath || !existing) edits.set(existing || key,value);
+      }
+      if (edits.size) replace(entry.path,encodeComponentText(patchComponentStrings(entry.text,edits),entry.encoding ? entry : {encoding:"utf-8",bom:true}));
+    }
+  }
+  const serialized=new XMLSerializer().serializeToString(xml);
+  triggerXmlDocument(serialized);
+  const declaration=folder.triggerSource.text.match(/^<\?xml[^?]*\?>/)?.[0];
+  replace(folder.triggers.path,encodeComponentText((declaration ? declaration+"\n" : "")+serialized,folder.triggerSource));
+  return {files:[...files.values()],...result};
+}
+async function writeGuiMapCopy(parent,sourceName,changes,progress) {
+  const stem=sourceName.replace(/\.SC2(?:Map|Components)$/i,"").slice(0,105);
+  const suffix=crypto.getRandomValues(new Uint32Array(1))[0].toString(16).padStart(8,"0");
+  const name=stem+"-UI-"+suffix+".SC2Components";
+  for await (const entry of parent.keys()) {
+    if (entry.toLowerCase()===name.toLowerCase()) throw new Error("同名副本已存在，请重试。");
+  }
+  const root=await parent.getDirectoryHandle(name,{create:true});
+  try {
+    const files=[...changes.files].sort((a,b)=>Number(/(^|\/)ComponentList\.SC2Components$/i.test(a.path))-Number(/(^|\/)ComponentList\.SC2Components$/i.test(b.path)));
+    const folders=new Map([["",root]]);
+    for (const [i,{path,payload}] of files.entries()) {
+      const parts=path.split("/"),filename=parts.pop();
+      let directory=root,prefix="";
+      for (const part of parts) {
+        prefix+=part+"/";
+        if (!folders.has(prefix)) folders.set(prefix,await directory.getDirectoryHandle(part,{create:true}));
+        directory=folders.get(prefix);
+      }
+      const handle=await directory.getFileHandle(filename,{create:true});
+      const writer=await handle.createWritable();
+      try { await writer.write(payload);await writer.close(); }
+      catch (error) { await writer.abort().catch(()=>{});throw error; }
+      progress(i+1,files.length);
+    }
+  } catch (error) {
+    try { await parent.removeEntry(name,{recursive:true}); }
+    catch { throw new Error("副本保存失败，残留目录「"+name+"」尚未写完整。"+error.message); }
+    throw error;
+  }
+  return name;
+}
 function textureReturnInfo(value,folder=null) {
   const key=assetKey(value);
   const source=catalog.get(key)?.source;
@@ -4550,7 +4880,7 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
 }
 function mapReturnInstructions(plan) {
   if (plan.previewScope) return [
-    "SC2 UI 工作台 v1.0.7 · 实机预览",
+    "SC2 UI 工作台 v1.0.8 · 实机预览",
     "",
     (plan.previewScope.sceneOverview ? "合成画布已开启，预览全部对话框。" : "合成画布已关闭，预览当前对话框。"),
     "预览范围见 ui_manifest.json 的 preview，按 files 中的路径将「地图文件」部署到专用测试副本。",
@@ -5111,6 +5441,10 @@ async function componentProject(folder,selection,locale,fontPath,screen) {
   const project=readWorkspace({version:4,dialogs:outcome.docs,fontStyles,layoutSources,
     skins:workspace.skins,skinProfile:workspace.skinProfile,components:workspace.components,sceneOverview:false,variableDefinitions,
     componentSource:{name:folder.name,signature:folder.signature,locale,fontPath:fontSource,functions}});
+  try {
+    guiProjectSymbols(project,folder,locale);
+    mergeTriggerVariableDefinitions(project);
+  } catch (error) { issues.push("GUI 变量名称："+error.message); }
   const checks=issues.map((message)=>({phase:"组件文件",line:1,message}));
   applyImportBaseline(project,new Set(project.dialogs.map(({id})=>id)),[...outcome.warnings,...checks],null);
   const score=({layout:{root,nodes}})=>Math.min(root.w,screen.w)*Math.min(root.h,screen.h)*(nodes.length?1:.15)*(root.visible?1:.65);
@@ -5158,6 +5492,9 @@ function openMapReturn() {
   $("mapReturnDiagnostics").open=!mapReturnPlan.ready;
   $("returnReconnect").hidden=!workspace.componentSource;
   $("downloadMapReturn").disabled=!mapReturnPlan.ready;
+  guiMapTarget=validConnectedFolder();
+  $("guiMapCopyStatus").textContent=guiMapTarget ? "目标地图 · "+guiMapTarget.name : "请选择要生成副本的组件地图。";
+  $("writeGuiMapCopy").disabled=!guiMapTarget;
   $("mapReturnDialog").showModal();
 }
 function installMapFolderFlow() {
@@ -5246,11 +5583,56 @@ function installMapFolderFlow() {
     mapConnections.set(folder.signature+"\n"+metadata.locale,{folder,locale:metadata.locale});
     mutate(()=>{
       if (updated) metadata.signature=folder.signature;
+      try { guiProjectSymbols(workspace,folder,metadata.locale); }
+      catch (error) { $("mapFolderStatus").textContent=error.message; }
+      mergeTriggerVariableDefinitions(workspace);
       mergeMapVariableDefinitions(folder,metadata.locale);
     });
     dialog.close();
     notify("已重新连接地图的文本、素材和 GUI 变量名称。");
     if (mapFolderMode==="reconnect") openMapReturn();
+  };
+  $("chooseGuiMapSource").onclick=()=>$("guiMapSourceInput").click();
+  $("guiMapSourceInput").onchange=async (event)=>{
+    const files=[...event.target.files];
+    event.target.value="";
+    if (!files.length) return;
+    const token=++mapReturnRequest,status=$("guiMapCopyStatus");
+    guiMapTarget=null;
+    $("writeGuiMapCopy").disabled=true;
+    status.textContent="正在读取目标地图…";
+    try {
+      const folder=await scanComponentFolder(files);
+      if (token!==mapReturnRequest || !$("mapReturnDialog").open) return;
+      if (workspace.componentSource && workspace.componentSource.signature!==folder.signature) {
+        throw new Error("请选择当前项目的原地图。地图更新后，请先重新连接。");
+      }
+      if (!folder.index || !folder.triggerSource) throw new Error("目标地图缺少 ComponentList 或可读取的 Triggers 文件。");
+      guiMapTarget=folder;
+      status.textContent="目标地图 · "+folder.name;
+      $("writeGuiMapCopy").disabled=false;
+    } catch (error) { if (token===mapReturnRequest) status.textContent=error.message; }
+  };
+  $("writeGuiMapCopy").onclick=async ()=>{
+    const folder=guiMapTarget,status=$("guiMapCopyStatus"),trigger=$("writeGuiMapCopy");
+    if (!folder || trigger.disabled) return;
+    if (typeof window.showDirectoryPicker!=="function") {
+      status.textContent="请在支持文件夹保存的 Chrome 或 Edge 中打开工作台。";return;
+    }
+    const copyMode=$("guiMapCopyMode").value;
+    trigger.disabled=true;
+    $("chooseGuiMapSource").disabled=true;
+    try {
+      const parent=await window.showDirectoryPicker({id:"sc2-workbench-map-copies",mode:"readwrite"});
+      status.textContent="正在核对变量和触发器…";
+      const plan=buildComponentReturn(workspace,folder,projectResources(workspace,folder),makeWorkspaceExport());
+      const result=await prepareGuiMapCopy(workspace,folder,plan,copyMode==="layout");
+      const name=await writeGuiMapCopy(parent,folder.name,result,(index,total)=>{
+        status.textContent="正在生成地图副本 · "+index+" / "+total;
+      });
+      status.textContent="已生成「"+name+"」。新建 "+result.created+" 个，复用 "+result.reused+" 个，更新 "+result.updated+" 个。请在银河编辑器打开其中的 ComponentList.SC2Components 并保存一次。";
+    } catch (error) { status.textContent=error.name==="AbortError" ? "已取消选择保存位置。" : error.message; }
+    finally { trigger.disabled=false;$("chooseGuiMapSource").disabled=false; }
   };
   $("returnReconnect").onclick=()=>{$("mapReturnDialog").close();openMapFolder("reconnect");};
   $("mapReturnDialog").addEventListener("close",()=>{
@@ -5599,7 +5981,8 @@ function readWorkspace(data) {
     skinProfile:Object.hasOwn(skinProfiles,data.skinProfile) ? data.skinProfile : initialSkinProfile,
     ...(typeof data.sceneOverview === "boolean" ? {sceneOverview:data.sceneOverview} : {}),
     layoutBaseline:cleanLayoutBaseline(data.layoutBaseline),components:readComponents(data.components),
-    componentSource:componentSourceMetadata(data.componentSource)};
+    componentSource:componentSourceMetadata(data.componentSource),
+    ...(Array.isArray(data.guiSymbols) ? {guiSymbols:readGuiSymbols(data.guiSymbols)} : {})};
 }
 function activeDocument() {
   return workspace.dialogs.find((doc) => doc.id === activeDialog);
@@ -5714,7 +6097,7 @@ function removeDialog() {
 function renderDialogStrip() {
   const selector = $("dialogSelect");
   selector.replaceChildren(...workspace.dialogs.map(({id,layout}) => {
-    const option = el("option","",layout.root.name+" · "+layout.prefix);
+    const option = el("option","",guiNodeCaption(layout.root,workspace)+" · "+layout.prefix);
     option.value = String(id);
     return option;
   }));
@@ -5761,7 +6144,7 @@ function renderDialogStack() {
     grip.draggable = order.length > 1;
     grip.title = "拖动以调整对话框层级";
     grip.setAttribute("aria-hidden","true");
-    const name = button(layout.root.name,()=>{
+    const name = button(guiNodeCaption(layout.root,workspace),()=>{
       $("dialogStackDialog").close();
       selectDialog(id);
     },"stack-name quiet");
@@ -7964,7 +8347,7 @@ function renderLayers(groups) {
     layer.setAttribute("aria-pressed",String(node.id === selected || ids.has(node.id)));
     if (node.id === selected) layer.setAttribute("aria-current","true");
     else layer.removeAttribute("aria-current");
-    layer.children[1].textContent = node.name;
+    layer.children[1].textContent = guiNodeCaption(node,workspace);
     layer.title = node.attachId ? node.name+" · 跟随 "+bounds.get(node.attachId).item.name :
       node.id ? node.name+" · 拖到另一控件可附着" : node.name+" · 将已附着控件拖到此处可解除";
     layer.lastChild.classList.toggle("is-attached",Boolean(node.attachId));
@@ -11295,6 +11678,52 @@ function scanMapDeclarations(source) {
 }
 // GUI names are resolved separately from Galaxy references: localizing a label
 // must never change the identifier used by the generated script.
+const guiTypes = new Map([
+  ["dialog","对话框"],["control","对话框项"],["int","整数"],["bool","布尔值"],
+  ["fixed","实数"],["string","字符串"],["text","文本"],["playergroup","玩家组"],
+  ["player","玩家"],["unit","单位"],["unitgroup","单位组"],["point","点"],
+  ["region","区域"],["timer","计时器"],["timerdialog","计时器窗口"],["trigger","触发器"],
+  ["struct","结构体"],["preset","预设"],["gamelink","游戏链接"]
+]);
+const guiCreatableTypes = new Set(["dialog","control","int","bool","fixed","string","text","playergroup","unit","unitgroup","point","region","timer","timerdialog","trigger"]);
+const guiTypeIds = new Map([...guiTypes].map(([id,label])=>[label,id]));
+function guiTypeLabel(type) {
+  return guiTypes.get(type) || type || "类型待确认";
+}
+function decodeGalaxyIdentifier(value) {
+  if (!/^[a-z_0-9]+$/i.test(value)) return "";
+  let found=false;
+  const decoded=value.replace(/(?:[cd][0-9a-f][89ab][0-9a-f]|e[0-9a-f](?:[89ab][0-9a-f]){2}|f[0-4](?:[89ab][0-9a-f]){3})+/gi,(hex)=>{
+    try {
+      const bytes=Uint8Array.from(hex.match(/../g),(byte)=>parseInt(byte,16));
+      const name=new TextDecoder("utf-8",{fatal:true}).decode(bytes);
+      if (/^[\p{L}\p{N}]+$/u.test(name)) { found=true; return name; }
+    } catch { /* Leave ordinary ASCII identifiers intact. */ }
+    return hex;
+  });
+  return found && !/[A-F0-9]{8,}/i.test(decoded) ? decoded : "";
+}
+function displayBindingName(binding) {
+  if (!binding) return "";
+  const parts=binding.name.replace(/^(?:lib\w+_)?gv_/,"").split(".");
+  const decoded=parts.map(decodeGalaxyIdentifier);
+  return decoded.some(Boolean) ? parts.map((name,i)=>decoded[i] || name).join(" › ") : "";
+}
+function guiNodeCaption(node,project=workspace) {
+  const binding=parseBinding(node?.binding || "");
+  if (!binding || !hasGuiBinding(node) || node.name!==node.binding) return node?.name || "";
+  const lower=binding.name.toLowerCase();
+  const definition=project.variableDefinitions?.find(({name})=>name===binding.name || name.toLowerCase()===lower);
+  const symbol=project.guiSymbols?.find(({name})=>name===binding.name || name.toLowerCase()===lower);
+  const path=definition?.displayName || symbol?.guiName || displayBindingName(binding);
+  if (!path) return node.name;
+  const indexes=(binding.segments?.at(-1)?.indexes || binding.indexes).map((index)=>"["+index+"]").join("");
+  return path+indexes;
+}
+function guiRowLabel(row) {
+  return row?.guiName || row?.displayName || displayBindingName({name:row?.name || ""}) ||
+    row?.uses?.find(({node})=>node.name!==node.binding)?.node.name || row?.name || "";
+}
 function readGuiVariableElements(source) {
   const xml=new DOMParser().parseFromString(source,"application/xml");
   if (xml.querySelector("parsererror")) throw new Error("Triggers 不是有效的 XML，无法读取 GUI 名称。");
@@ -11308,6 +11737,163 @@ function readGuiVariableElements(source) {
     records.push({id,identifier,library});
   }
   return records;
+}
+function triggerChildren(node,tag) {
+  return [...(node?.children || [])].filter((child)=>child.tagName===tag);
+}
+function triggerChild(node,tag) {
+  return triggerChildren(node,tag)[0];
+}
+function triggerIdentifierAliases(label) {
+  const compact=(label || "").trim().replace(/[^\p{L}\p{N}_]+/gu,"");
+  if (!compact) return [];
+  const encoded=compact.replace(/[^\x00-\x7f]+/g,(value)=>[...new TextEncoder().encode(value)]
+    .map((byte)=>byte.toString(16).padStart(2,"0")).join(""));
+  return [encoded,encoded[0].toLowerCase()+encoded.slice(1)];
+}
+function triggerXmlDocument(source) {
+  if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw new Error("地图的 Triggers 含有不支持的 XML 声明。");
+  const xml=new DOMParser().parseFromString(source,"application/xml");
+  if (xml.documentElement.tagName!=="TriggerData" || xml.querySelector("parsererror")) {
+    throw new Error("无法读取地图的 Triggers。");
+  }
+  return xml;
+}
+function triggerGuiIndex(xml,localized,declared=new Map()) {
+  const data=xml.documentElement;
+  const containers=new Map([["",data],...triggerChildren(data,"Library").map((node)=>[node.getAttribute("Id"),node])]);
+  const elements=new Map([...containers].map(([library,node])=>[library,new Map(triggerChildren(node,"Element")
+    .map((element)=>[element.getAttribute("Type")+"/"+element.getAttribute("Id")?.toUpperCase(),element]))]));
+  const key=(type,library,id)=>type+"/Name/"+(library ? "lib_"+library+"_" : "")+id;
+  const label=(type,library,node)=>localized.get(key(type,library,node.getAttribute("Id")).toLowerCase()) ||
+    triggerChild(node,"Name")?.textContent || "";
+  const lookup=(type,library,id)=>elements.get(library)?.get(type+"/"+id?.toUpperCase());
+  function list(container,library,type,seen=new Set()) {
+    const result=[];
+    for (const ref of triggerChildren(container,"Item")) {
+      const id=ref.getAttribute("Id"),refType=ref.getAttribute("Type"),scope=ref.getAttribute("Library") || library;
+      const element=lookup(refType,scope,id);
+      if (!element || seen.has(element)) continue;
+      seen.add(element);
+      if (refType===type) result.push({element,library:scope});
+      if (refType==="Category") result.push(...list(element,scope,type,seen));
+    }
+    return result;
+  }
+  const variableNames=new Map(),triggerNames=new Map(),byIdentity=new Map(),members=new Map();
+  function variable(element,library,prefix,parent="",depth=0,seen=new Set()) {
+    const id=element.getAttribute("Id"),identifier=triggerChild(element,"Identifier")?.textContent?.trim() || "";
+    const guiName=label("Variable",library,element);
+    const names=(identifier ? [identifier] : [...triggerIdentifierAliases(guiName),id]).filter(Boolean).map((name)=>prefix+name);
+    const typeNode=triggerChild(element,"VariableType");
+    const type=triggerChild(typeNode,"Type")?.getAttribute("Value") || "";
+    const sizes=triggerChildren(typeNode,"ArraySize").map((size)=>[Number(size.getAttribute("Dim")),size.getAttribute("Value")]);
+    const dimensions=Array.from({length:sizes.length},(_,i)=>{
+      const value=sizes.find(([at])=>at===i)?.[1];
+      return /^\d+$/.test(value || "") ? Number(value)+1 : null;
+    });
+    const identity=library+":"+id.toUpperCase();
+    const name=names.find((candidate)=>declared.has(candidate)) || names[0];
+    if (!name) return;
+    const row={name,guiName,type,dimensions,identity,parent,element,library,key:key("Variable",library,id),aliases:names};
+    byIdentity.set(identity,row);
+    if (depth>=8 || seen.has(identity) || type!=="struct") return row;
+    const link=triggerChild(typeNode,"TypeElement");
+    const scope=link?.getAttribute("Library") || library;
+    const structure=lookup("Structure",scope,link?.getAttribute("Id"));
+    row.children=[];
+    for (const ref of triggerChildren(structure,"Variable")) {
+      const memberScope=ref.getAttribute("Library") || scope;
+      const member=lookup("Variable",memberScope,ref.getAttribute("Id"));
+      if (!member) continue;
+      const entry=variable(member,memberScope,"",identity,depth+1,new Set([...seen,identity]));
+      if (entry) row.children.push(entry);
+    }
+    return row;
+  }
+  function index(map,aliases,row) {
+    for (const name of new Set(aliases)) {
+      const prior=map.get(name);
+      if (prior!==row) map.set(name,prior===undefined ? row : null);
+    }
+  }
+  for (const [library,node] of containers) {
+    for (const entry of list(triggerChild(node,"Root"),library,"Variable")) {
+      const row=variable(entry.element,entry.library,entry.library ? "lib"+entry.library+"_gv_" : "gv_");
+      if (row) index(variableNames,row.aliases,row);
+    }
+    for (const entry of list(triggerChild(node,"Root"),library,"Trigger")) {
+      const id=entry.element.getAttribute("Id"),guiName=label("Trigger",entry.library,entry.element);
+      const identifier=triggerChild(entry.element,"Identifier")?.textContent?.trim();
+      const prefix=entry.library ? "lib"+entry.library+"_gt_" : "gt_";
+      index(triggerNames,(identifier ? [identifier] : [...triggerIdentifierAliases(guiName),id]).map((name)=>prefix+name+"_Func"),
+        {...entry,guiName});
+    }
+  }
+  function resolve(path) {
+    if (members.has(path)) return members.get(path);
+    const [root,...parts]=path.split(".");
+    let row=variableNames.get(root);
+    if (!row) {
+      const lower=root.toLowerCase();
+      const candidates=[...new Set([...variableNames.values()].filter((entry)=>entry && entry.name.toLowerCase()===lower))];
+      if (candidates.length===1) row=candidates[0];
+    }
+    if (!row && !variableNames.has(root)) {
+      const decoded=displayBindingName({name:root});
+      const choices=new Set([...variableNames.values()].filter((entry)=>decoded && entry?.guiName===decoded &&
+        root.startsWith(entry.library ? "lib"+entry.library+"_gv_" : "gv_")));
+      if (choices.size===1) row=[...choices][0];
+    }
+    const labels=[];
+    if (row?.guiName) labels.push(row.guiName);
+    else labels.push(displayBindingName({name:root}) || guiVariableName(root));
+    let levels=row ? [row] : [];
+    for (const part of parts) {
+      const options=row?.children?.filter(({aliases,guiName})=>aliases.includes(part) ||
+        (guiName && decodeGalaxyIdentifier(part)===guiName)) || [];
+      row=options.length===1 ? options[0] : null;
+      if (!row) break;
+      levels.push(row);
+      labels.push(row.guiName || decodeGalaxyIdentifier(part) || part);
+    }
+    const result=row ? {...row,name:path,guiName:parts.length ? labels.join(" › ") : row.guiName,levels} : null;
+    members.set(path,result);
+    return result;
+  }
+  const globals=[...new Set([...variableNames.values()].filter(Boolean))];
+  return {data,globals,resolve,triggerNames,lookup,byIdentity};
+}
+function triggerLocaleValues(folder,locale) {
+  const values=new Map();
+  const rank=(entry)=>entry.locale ? entry.locale===locale ? 4 : entry.locale==="zhCN" ? 2 : entry.locale==="zhTW" ? 1 : 0 : 3;
+  for (const {values:strings} of folder.texts.filter(({path})=>/(^|\/)TriggerStrings\.txt$/i.test(path)).sort((a,b)=>rank(a)-rank(b))) {
+    for (const [key,value] of strings) if (value.trim()) values.set(key.toLowerCase(),value);
+  }
+  return values;
+}
+function guiProjectSymbols(project,folder,locale) {
+  if (!folder.triggerSource) return 0;
+  const declaredNames=new Set(folder.scanned?.declarations?.globals?.keys() || []);
+  const index=triggerGuiIndex(triggerXmlDocument(folder.triggerSource.text),triggerLocaleValues(folder,locale),declaredNames);
+  const symbols=new Map();
+  function record(row,name=row.name) {
+    const key=row.identity || name.toLowerCase();
+    const previous=symbols.get(key);
+    if (previous && declaredNames.has(previous.name) && !declaredNames.has(name)) return;
+    symbols.set(key,{name,guiName:row.levels?.at(-1)?.guiName || row.guiName,type:row.type,
+      dimensions:row.dimensions,identity:row.identity});
+  }
+  for (const row of index.globals) record(row);
+  for (const {layout} of project.dialogs) {
+    for (const node of [layout.root,...layout.nodes]) {
+      const binding=parseBinding(node.binding);
+      const row=binding && index.resolve(binding.name);
+      if (row) record(row,binding.name);
+    }
+  }
+  project.guiSymbols=[...symbols.values()];
+  return symbols.size;
 }
 function variableLocalizationNames(localized,records=[]) {
   const exact=new Map();
@@ -11382,6 +11968,16 @@ function inferredVariableDimensions(refs,name) {
   }
   return lengths;
 }
+function readGuiSymbols(values) {
+  if (!Array.isArray(values)) return [];
+  return values.slice(0,12000).filter((row)=>row && typeof row.name==="string").map((row)=>({
+    name:row.name.slice(0,256),
+    guiName:typeof row.guiName==="string" ? row.guiName.trim().slice(0,120) : "",
+    type:/^[a-z]\w*$/i.test(row.type || "") ? row.type : "",
+    dimensions:Array.isArray(row.dimensions) ? row.dimensions.slice(0,4).map((size)=>Number.isSafeInteger(size) && size>=1 ? size : null) : [],
+    ...(typeof row.identity==="string" && /^[A-Za-z0-9_]*:[A-F0-9]{8}$/i.test(row.identity) ? {identity:row.identity} : {})
+  })).filter((row)=>row.name && (row.guiName || row.type));
+}
 function readVariableDefinitions(values) {
   const seen=new Set(),result=[];
   for (const value of Array.isArray(values) ? values.slice(0,12000) : []) {
@@ -11396,6 +11992,9 @@ function readVariableDefinitions(values) {
     seen.add(binding.name);
     result.push({name:binding.name,displayName:string(value.displayName,120),galaxyType:string(value.galaxyType,100),
       dimensions,initialValue:string(value.initialValue,2048),initialAssignments,
+      ...(typeof value.guiType==="string" && /^[a-z]\w*$/i.test(value.guiType) ? {guiType:value.guiType} : {}),
+      ...(typeof value.guiIdentity==="string" && /^[A-Za-z0-9_]*:[A-F0-9]{8}$/i.test(value.guiIdentity) ? {guiIdentity:value.guiIdentity} : {}),
+      ...(value.initialChanged ? {initialChanged:true} : {}),
       ...(typeof value.originalName==="string" && parseBinding(value.originalName)?.name===value.originalName ? {originalName:value.originalName} : {}),
       ...(value.edited ? {edited:true} : {}),...(value.source==="map"?{source:"map"}:{})});
   }
@@ -11403,14 +12002,15 @@ function readVariableDefinitions(values) {
 }
 function importVariableDefinitions(scanned,localized,records,docs) {
   const names=variableLocalizationNames(localized,records);
-  const exact=(name)=>names.get(name)?.size===1 ? [...names.get(name)][0] : "";
+  const exact=(name)=>names.get(name)?.size===1 ? [...names.get(name)][0] : displayBindingName({name});
   const entries=new Map();
   const {globals=new Map(),structures=new Map()}=scanned?.declarations || {};
   function add(name,declaration,dimensions,pathTypes=new Set()) {
     if (entries.size>=12000 || name.length>maxBindingLength || declaration.constant) return;
     const displayName=exact(name);
     const parts=[...dimensions,declaration.dimensions.map(({value})=>value || "?")];
-    entries.set(name,{name,displayName,galaxyType:declaration.type,dimensions:parts,initialValue:declaration.initialValue,source:"map"});
+    entries.set(name,{name,displayName,galaxyType:declaration.type,guiType:guiTypes.has(declaration.type) ? declaration.type : "",
+      dimensions:parts,initialValue:declaration.initialValue,source:"map"});
     const members=structures.get(declaration.type);
     if (!members || pathTypes.has(declaration.type) || pathTypes.size>=8) return;
     const next=new Set([...pathTypes,declaration.type]);
@@ -11425,7 +12025,8 @@ function importVariableDefinitions(scanned,localized,records,docs) {
     refGroups.get(name).push(ref);
   }
   for (const [name,group] of refGroups) {
-    if (!entries.has(name)) entries.set(name,{name,displayName:exact(name),galaxyType:group[0].type,dimensions:inferredVariableDimensions(group,name)});
+    if (!entries.has(name)) entries.set(name,{name,displayName:exact(name),galaxyType:group[0].type,
+      guiType:guiTypeIds.get(group[0].type) || "",dimensions:inferredVariableDimensions(group,name)});
   }
   // A structure member can inherit its root's GUI label; the member identifier stays intact.
   for (const entry of entries.values()) {
@@ -11471,6 +12072,28 @@ function applyLocalizedVariableNames(docs,definitions,previousDefinitions=[]) {
       node.name=variableLabelFor(binding,map.get(binding.name));
     }
   }
+}
+function mergeTriggerVariableDefinitions(project) {
+  const definitions=new Map((project.variableDefinitions || []).map((entry)=>[entry.name,entry]));
+  for (const symbol of project.guiSymbols || []) {
+    if (!symbol?.name) continue;
+    const existing=definitions.get(symbol.name);
+    if (existing) {
+      if (!existing.displayName) existing.displayName=symbol.guiName || displayBindingName({name:symbol.name});
+      if (!existing.edited && symbol.type && guiTypes.has(symbol.type)) existing.guiType=symbol.type;
+      if (!existing.guiIdentity && symbol.identity) existing.guiIdentity=symbol.identity;
+      if (!existing.dimensions?.some((part)=>part.length) && symbol.dimensions) {
+        existing.dimensions=[symbol.dimensions.map((size)=>size==null?"?":String(size))];
+      }
+    } else {
+      definitions.set(symbol.name,{name:symbol.name,
+        displayName:symbol.guiName || displayBindingName({name:symbol.name}),
+        galaxyType:symbol.type || "",guiType:symbol.type || "",guiIdentity:symbol.identity || "",
+        dimensions:[(symbol.dimensions || []).map((size)=>size==null?"?":String(size))],source:"map"});
+    }
+  }
+  project.variableDefinitions=readVariableDefinitions([...definitions.values()]);
+  applyLocalizedVariableNames(project.dialogs,project.variableDefinitions);
 }
 function mergeMapVariableDefinitions(folder,locale) {
   const discovered=importVariableDefinitions(folder.scanned,componentLocalizedTexts(folder,locale),folder.variableElements,workspace.dialogs);
@@ -11669,11 +12292,14 @@ function openVariableEditor(name="") {
   const groups=workspaceVariableGroups(),entry=groups.get(name);
   const descendants=name ? [...groups.values()].filter((item)=>item.name.startsWith(name+".")) : [];
   const refs=[...(entry?.refs || []),...descendants.flatMap((item)=>item.refs)];
-  variableEditing={name,entry,refs,descendants,inputs:[]};
+  variableEditing={name,entry,refs,descendants,inputs:[],initialValue:entry?.initialValue || ""};
   $("variableEditTitle").textContent=name ? "编辑全局变量" : "新建全局变量";
   $("variableDisplayName").value=entry?.displayName || "";
   $("variableIdentifier").value=name || "gv_";
-  $("variableType").value=entry?.galaxyType || "int";
+  const selectedType=entry?.guiType || entry?.galaxyType || "int";
+  const typeOptions=[...guiTypes].filter(([id])=>guiCreatableTypes.has(id) || id===selectedType).map(([id,label])=>[id,label]);
+  if (!guiTypes.has(selectedType)) typeOptions.unshift([selectedType,"保留类型（"+selectedType+"）"]);
+  componentSelect($("variableType"),typeOptions,selectedType);
   $("variableDimensions").value=entry ? variableDimensionText(entry.dimensions) : "—";
   $("variableInitialValue").value=entry?.initialValue || "";
   $("variableInitialAssignments").value=(entry?.initialAssignments || []).map(({reference,value})=>reference+" = "+value.replace(/[\r\n]+/g," ")).join("\n");
@@ -11758,7 +12384,9 @@ function saveVariableEditor() {
   }
   const displayName=$("variableDisplayName").value.trim();
   const galaxyType=$("variableType").value.trim();
-  if (!galaxyType) return fail("请填写变量类型。");
+  const initialValue=$("variableInitialValue").value.trim();
+  const initialChanged=initialValue!==(context.entry?.initialValue || "");
+  if (!galaxyType) return fail("请选择变量类型。");
   const initialAssignments=[];
   const initialSeen=new Set();
   for (const line of $("variableInitialAssignments").value.split(/\r?\n/)) {
@@ -11808,8 +12436,11 @@ function saveVariableEditor() {
         initialAssignments:(item.initialAssignments || []).map((assignment)=>({...assignment,reference:renamedVariableReference(assignment.reference,old,name)}))});
     }
     definitions.delete(old);
-    definitions.set(name,{name,displayName,galaxyType,dimensions,initialValue:$("variableInitialValue").value.trim(),
-      initialAssignments,
+    const storageType=["dialog","control"].includes(galaxyType) && /^(?:int|dialogcontrol)$/.test(previous?.galaxyType || "") ?
+      previous.galaxyType : galaxyType;
+    definitions.set(name,{name,displayName,galaxyType:storageType,guiType:galaxyType,dimensions,initialValue,
+      initialChanged,initialAssignments,
+      ...(previous?.guiIdentity ? {guiIdentity:previous.guiIdentity} : {}),
       ...(old ? {originalName:previous?.originalName || old} : {}),...(previous?.source ? {source:previous.source} : {}),edited:true});
     workspace.variableDefinitions=readVariableDefinitions([...definitions.values()]);
   });
@@ -13068,7 +13699,7 @@ function scanUiGalaxy(source) {
     return lo+1;
   }
   const sections = [];
-  const free = {name:"脚本片段",statements:[],skipped:[],bodyStart:-1};
+  const free = {name:"脚本片段",statements:[],skipped:[],nestedBlocks:[],bodyStart:-1};
   let start = 0, depth = 0, parentheses = 0, current = null, branch = -1;
   function addStatement(part,end) {
     let raw = code.slice(start,end);
@@ -13085,7 +13716,7 @@ function scanUiGalaxy(source) {
       if (!depth) {
         const header = code.slice(start,i).trim().match(/\b(\w+)\s*\(([^()]*)\)\s*$/);
         if (header && !/^(if|for|while|switch)$/.test(header[1])) {
-          current={name:header[1],params:header[2],statements:[],skipped:[],bodyStart:i};
+          current={name:header[1],params:header[2],statements:[],skipped:[],nestedBlocks:[],bodyStart:i};
           sections.push(current);
         } else if (!code.slice(start,i).trim()) current=free;
         else { current=null; branch=start; }
@@ -13096,6 +13727,7 @@ function scanUiGalaxy(source) {
       depth--;
       if (depth===1 && current && branch>=0 || !depth && !current && branch>=0) {
         const dynamic=masked.slice(branch,i);
+        if (current) current.nestedBlocks.push(dynamic);
         if (/\b(?:Dialog(?:Control)?(?:Create|Set|Destroy|Hookup)|libNtve_gf_(?:CreateDialogItem|SetDialogItem))\w*\s*\(/.test(dynamic)) {
           (current||free).skipped.push({line:lineOf(branch+dynamic.search(/\S/)),message:"跳过带条件或循环的界面动作。"});
         }
@@ -14861,7 +15493,7 @@ function openCommandPalette() {
     ...[
       ["布局模板","grid","openTemplates"],["本地贴图库","asset","openAssetsTop"],["字体样式","label","openFontStyles"],
       ["工作台主题","theme","openThemes"],["导出 Galaxy","code","openExport"],
-      ["导出地图回导包","code","openMapReturn"],["GUI 变量","list","openBindings"],
+      ["回导地图","code","openMapReturn"],["GUI 变量","list","openBindings"],
       ["参考截图","screenshot","openScreenshot"],["对话框层级","list","openDialogStack"],
       ["实机预览","launch","openLivePreview"],["使用教程","guide","openTutorial"]
     ].map(([name,kind,id])=>({name,kind,run:()=>$(id).click()})),
@@ -15114,7 +15746,11 @@ $("mapVariableFolderInput").onchange=async (event)=>{
     if (workspace!==project) return notify("项目已切换，未导入变量资料。");
     const locale=folder.locales.includes(project.componentSource?.locale) ? project.componentSource.locale : folder.locales[0] || "";
     let localized=0;
-    mutate(()=>{localized=mergeMapVariableDefinitions(folder,locale);});
+    mutate(()=>{
+      guiProjectSymbols(project,folder,locale);
+      mergeTriggerVariableDefinitions(project);
+      localized=mergeMapVariableDefinitions(folder,locale);
+    });
     notify("已识别 "+localized+" 个本地化变量名称，原布局保留。"+(localized?"":"请确认地图包含 Triggers 和对应语言的 TriggerStrings.txt。"));
   } catch (error) { notify("读取地图变量失败："+error.message); }
   finally { $("readMapVariables").disabled=false; }
