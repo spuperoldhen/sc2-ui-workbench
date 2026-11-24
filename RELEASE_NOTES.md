@@ -27,6 +27,7 @@
 
 ## 兼容与限制
 
+- 无控制台窗口启动时，日志写入 `%LOCALAPPDATA%\SC2WorkbenchPreview\launcher.log`；窗口模式不再因缺少 stdout/stderr 返回空响应。
 - 测试副本目录名需以 `-UI-Test` 结尾，并包含 `ComponentList.SC2Components`。
 - 不要直接运行 `SC2_x64.exe`，会缺 `icuuc52.dll`；启动器使用 `Support64\SC2Switcher_x64.exe`。
 - `price` 字体样式 `height=38` 与文本表达式里的 `<img height="40">` 仍可能触发游戏内 `TextError`；工作台预览已按 34 高显示。

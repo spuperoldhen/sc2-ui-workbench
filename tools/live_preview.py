@@ -23,6 +23,18 @@ import webbrowser
 from zipfile import BadZipFile
 import sys
 
+LOG_PATH = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "SC2WorkbenchPreview" / "launcher.log"
+if sys.stdout is None or sys.stderr is None:
+    try:
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _log_stream = open(LOG_PATH, "a", encoding="utf-8", buffering=1)
+        if sys.stdout is None:
+            sys.stdout = _log_stream
+        if sys.stderr is None:
+            sys.stderr = _log_stream
+    except OSError:
+        pass
+
 from launch_test_game import editor_window, request_test_document
 
 def resource_root():
