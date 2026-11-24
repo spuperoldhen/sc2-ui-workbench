@@ -1,5 +1,36 @@
 # SC2 UI 工作台
 
+## v1.0.6 · 实机预览
+
+「实机预览」用游戏客户端检查对话框的布局、贴图和字体。开启「合成画布」时，导出并显示项目的全部对话框。关闭时，只导出并显示当前页。当前页附着于其它对话框时，会换算成等效的屏幕锚点和偏移。表达式取工作台的预览值，玩家覆盖取当前模拟玩家。
+
+工作台启动器从 `ui_manifest.json` 的 `preview.sceneOverview` 读取合成画布状态，`preview.activeDialogId` 是当前页，`preview.dialogIds` 是本次导出并显示的对话框 ID，与 `dialogs` 一致。按 `files` 部署，脚本路径和引用见 `integration.script` 与 `integration.include`。切换范围时更新同一份预览脚本，下一局加载新范围。
+
+### 首次连接测试地图
+
+1. 在 Windows 上用银河编辑器把目标地图**另存为组件文件夹**，例如 `黄金矿工-UI-Test.SC2Map`。目录内应有 `ComponentList.SC2Components`，目录名的地图部分以 `-UI-Test` 结尾。请使用专门的测试副本名称，让启动器能识别编辑器当前窗口。
+2. 双击工作台根目录的「启动SC2 UI 工作台.exe」。首次会弹出文件夹选择框，选择一个以 `-UI-Test` 结尾的测试副本（包含 `ComponentList.SC2Components`）；之后会自动记住并打开 `http://127.0.0.1:8765/` 的工作台页面。从「项目管理 → 打开项目 JSON」载入项目。完整步骤见根目录的 `第一次使用.txt`。
+
+   也可以在工作台目录用 PowerShell 运行源码方式（或双击 `tools\启动SC2 UI 工作台（备用）.bat`）：
+
+   ```powershell
+   py -3 .\tools\live_preview.py --map-copy 'D:\SC2\黄金矿工-UI-Test.SC2Map'
+   ```
+
+   exe 无窗口运行，浏览器就是界面：关闭工作台标签页后，本地服务会在几秒内自动退出并释放端口（浏览器异常退出时最多两分钟兜底）；再次双击会直接打开已有页面，不会重复启动。exe **每次请求都读取同目录的 `index.html`**：网页端更新 HTML 后刷新页面即可生效，不用重启或重新打包。`stage.py` 在启动时加载，替换后重启 exe 即可；`tools/live_preview.py` 或 `tools/launch_test_game.py` 是冻结代码，改动才需要重新打包（或改用备用 .bat 的源码方式）。如果双击时提示另一个工作台服务仍在运行，先关闭它的工作台标签页，约 10 秒后再启动。页面仍是 `index.html`，只是由启动器在 `127.0.0.1` 提供；直接以 `file://` 打开仍可编辑和导出，但不会显示「写入 / 启动」按钮。契约见 [docs/live-preview-baseline.md](docs/live-preview-baseline.md)。
+
+3. 直接在工作台点「实机预览 → 写入并测试」。默认 `--launch direct`：启动器会写入预览脚本、自动补齐测试副本的 `include "Scripts/SC2WorkbenchPreview"` 和 `SC2WorkbenchPreview_Init();`，再用 `Support64\SC2Switcher_x64.exe -run "<测试地图路径>" -displaymode 0` 直接拉起游戏；如果上一局还在运行，启动器会先尝试结束它。不需要银河编辑器，也不需要打包。页面里的「写入测试副本 / 写入并测试」只在启动器提供的 `127.0.0.1` 地址下出现。
+
+4. 需要走银河编辑器的「测试文档」时，启动命令加 `--launch editor`：先把测试副本在编辑器中打开并保存，再点「写入并测试」，启动器会向该窗口发送测试命令。首次接入仍可用编辑器手动放置 `include "Scripts/SC2WorkbenchPreview"` 和 `SC2WorkbenchPreview_Init();`，或者让 direct 模式自动补齐后保存一次。
+
+   「黄金矿工」组件副本已验证可用 `Support64\SC2Switcher_x64.exe -run "<测试地图路径>" -displaymode 0` 直启。
+
+### 素材和写入状态
+
+- 预览包生成自包含的 `Scripts/SC2WorkbenchPreview.galaxy`，负责创建和显示对话框、套用预览值。响应脚本、触发器、事件、动作函数及 GUI 变量由地图作者或本地 agent 另外接入。
+- 在网页或离线 HTML 中可以直接下载预览包。需要读原地图的自定义贴图时，可先从正常的地图回导入口重新连接原素材目录。素材提示也可能列出由 SC2 依赖提供的路径。
+- 启动器发现测试副本里的同名文件有外部变更时会报出冲突。首次确实要以项目内的字体样式覆盖副本字体时，可以给启动命令加 `--replace-font-styles`。旧文件和每次写入报告保存在本机 `SC2WorkbenchPreview` 状态目录，Windows 上通常位于 `%LOCALAPPDATA%`。
+
 在浏览器里设计《星际争霸 II》对话框，所见即所得地摆放控件；支持文字表达式、控件样式和逐玩家实例，导出可直接接入银河编辑器的 Galaxy 布局、GUI 全局变量绑定和初始化动作。
 
 [![Release](https://img.shields.io/github/v/release/spuperoldhen/sc2-ui-workbench?style=flat-square&color=7c5cff)](https://github.com/spuperoldhen/sc2-ui-workbench/releases/latest)
@@ -19,6 +50,21 @@
 4. **导出**：从「导出 Galaxy」生成脚本、初始化动作、GUI 变量清单和地图回导 ZIP。
 
 > 也可以把 `index.html` 放到任意静态站点。通过 `file://` 打开时，项目目录连接可能受限；需要本地目录管理时，建议在所在目录运行 `python -m http.server 8765 --bind 127.0.0.1`，再访问 `http://localhost:8765/`。
+
+## v1.0.6 新增
+
+| 功能 | 说明 |
+| --- | --- |
+| 实机预览 | 从工作台写入测试副本并直启游戏，检查布局、贴图、字体和 HUD 遮挡 |
+| 无窗口启动器 | `启动SC2 UI 工作台.exe` 双击即用；关页自动退出并释放端口 |
+| 合成画布 / 当前页 | 画布开启预览全部对话框，关闭只预览当前页并换算锚点 |
+| 直启测试副本 | 自动补 include/InitMap，调用 SC2Switcher 启动目录形态 `-UI-Test` 副本 |
+| 本地基线 | `docs/live-preview-baseline.md` 与 `第一次使用.txt` |
+| 顶栏分组 | 项目与布局 / 素材与接入 / 测试与导出三组，按钮带图标 |
+| 教程章节 | 使用教程移到品牌旁，新增项目与模板、表达式与格式刷、实机预览三章 |
+| 表达式预览 | 弹窗和画布共用字号、字重、颜色、对齐；40 高行内图按 34 显示 |
+| 对话框背景 | 矮框保留原生边角，通过裁切适应高度 |
+| 独立项目导入 | 打开项目 JSON 默认独立导入，原草稿可从项目管理切回 |
 
 ## v1.0.5 新增
 

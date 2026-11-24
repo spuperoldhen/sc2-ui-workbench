@@ -16,6 +16,8 @@ py -3 "$skill\scripts\stage.py" --bundle '.\run-01\sc2-ui-return.zip' --map-copy
 
 ## 写入编辑器
 
+> v1.0.5 预览包（`Scripts/SC2WorkbenchPreview.galaxy`）可直接用 `tools/live_preview.py` 的默认 `--launch direct` 启动，不必走本节；本节用于 GUI 接入或 `--launch editor`。
+
 1. 在编辑器中打开测试地图。用实际窗口标题确认地图，切到触发器模块。先检查是否已有同名接入或旧 UI 创建动作。给专用顶层自定义脚本取名 `SC2WorkbenchUI`。使用清单中的 `integration.include`（默认 `include "Scripts/SC2WorkbenchUI"`）。若当前地图打包方式无法解析 include，确认脚本的资源路径；确需内嵌时，把完整 Galaxy 脚本贴入同一顶层节点，移除 include，保持入口唯一。
 2. 从 `ui_manifest.json` 读取 `variables`。按 GUI 识别符找到对应变量，核对生成后的 Galaxy 名称、类型及维数。每个维度至少满足 `minimumArrayLengths`。对清单中的绑定，优先复用原变量；仅创建清单要求且用途明确的 GUI 变量。保留原玩家组、事件、绑定回调和时序。对于标记为 `guiBindingEnabled: false` 的对话框或控件，从 `intent` 判断是否需要运行时接入。只在初始化中使用时，优先将句柄作为参数传给接入函数。若运行时确实需要，`handleScope: "script"` 可直接用于同一地图脚本的回调，`handleScope: "createFunction"` 则在创建时把句柄交给地图现有的脚本回调或其状态。按项目源码流程保存并记录接入，便于重新导出后复用。
 3. 按清单 `integration.initialization` 读取 `初始化动作.txt`，把内容贴入对应触发器的自定义脚本动作。新测试地图可创建专用 UI 初始化触发器。旧地图在原 GUI 创建阶段更新专用动作，保留它周围的事件、条件和游戏逻辑，并检查该阶段只创建一次该批 UI。按原运行时流程处理必须在玩家组初始化之后执行的调用。使用系统剪贴板粘贴多行，并读回核对首尾各行；只在确认文本编辑区有焦点时粘贴。

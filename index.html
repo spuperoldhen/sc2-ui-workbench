@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="sc2-preview-bridge" content="offline">
 <title>对话框工作台 · SC2 UI Editor</title>
 <style>
 :root {
@@ -124,6 +125,7 @@ h2,h3{font-size:13px;line-height:1.3;margin:0;font-weight:710}
 .sc2-inline-image .icon{width:100%;height:100%}
 .sc2-inline-image.is-missing{color:var(--muted)}
 .text-expression-preview{min-height:42px;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--stage);color:var(--ink);font-size:18px;white-space:pre-wrap;overflow-wrap:anywhere}
+.expression-preview-face{display:flex;align-items:center;margin-inline:auto}
 .expression-preview-dock{position:sticky;top:0;z-index:1;background:var(--panel);padding:3px 0 8px}
 #expressionImageStatus{margin:6px 0 0;overflow-wrap:anywhere}
 .text-expression-token{min-width:0;margin:8px 0;padding:8px 10px 10px;border:1px solid var(--line);border-radius:6px}
@@ -269,9 +271,7 @@ dialog::backdrop{background:#0b0814bc}
 @media(max-width:1150px){.workspace{grid-template-columns:188px minmax(0,1fr) 233px}.heading{margin-bottom:17px}}
 @media(max-width:880px){.workspace{grid-template-columns:158px minmax(0,1fr) 205px}.heading p{display:none}.inspector section,.right-head{padding-left:10px;padding-right:10px}}
 @media(max-width:700px){main{padding-top:17px}.top{height:53px}.top-right{gap:10px}.brand small,.save{display:none}.workspace{height:auto;max-height:none;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:440px auto}.canvas-column{grid-row:1;grid-column:1/-1;border-bottom:1px solid var(--line)}.left{border:0}.side{max-height:620px}.heading .cluster{gap:4px}.heading .cluster button{padding:0 8px}.heading h1{font-size:23px}.viewport .board{padding:28px 19px 19px}}
-@media(max-width:410px){.heading #openAssetsTop{display:none}.canvas-bar{padding-inline:6px}.canvas-bottom{padding:1px 6px}.canvas-bottom #screenHint{display:none}}
-
-.layout-header-actions{flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:410px){.canvas-bar{padding-inline:6px}.canvas-bottom{padding:1px 6px}.canvas-bottom #screenHint{display:none}}
 .canvas-bar select{width:auto;max-width:110px;padding:4px 6px;font-size:11px}
 .track-guide,.screenshot-layer{position:absolute;pointer-events:none}
 .screenshot-layer{inset:0;width:100%;height:100%;z-index:-1}
@@ -367,7 +367,7 @@ td code{overflow-wrap:anywhere;color:#dec8ff}
 .list-line.chosen{background:#524368;color:#f4eaff}
 .solid-preview{position:absolute;inset:0;z-index:0;border-radius:inherit}
 @media(max-width:700px){.layout-header-actions button{font-size:11px}.templates{grid-template-columns:1fr}.canvas-bar select{max-width:95px}}
-@media(max-width:430px){.canvas-bar .divider,#redo{display:none}.heading #openBindings{display:none}}
+@media(max-width:430px){.canvas-bar .divider,#redo{display:none}}
 
 .export-detail{max-height:53vh;overflow:auto;padding:0 4px 3px 0}
 .check-list{display:grid;gap:7px}
@@ -463,10 +463,13 @@ td code{overflow-wrap:anywhere;color:#dec8ff}
 @media(max-width:620px){.font-editor-grid{grid-template-columns:1fr}}
 #tutorialDialog{width:min(960px,calc(100% - 24px));height:min(750px,calc(100vh - 28px));height:min(750px,calc(100dvh - 28px));max-height:none}
 #tutorialDialog[open]{display:flex;flex-direction:column}
-#tutorialDialog .modal-head{flex:none;padding:15px 19px 12px}
+#tutorialDialog .modal-head{flex:none;gap:10px;padding:15px 19px 12px}
 #tutorialDialog .modal-head p{margin:4px 0 0;color:var(--sub);font-size:12px}
+.tutorial-header-actions{gap:6px;flex:none}
 .tutorial-grid{flex:1;min-height:0;display:grid;grid-template-columns:175px minmax(0,1fr)}
 .tutorial-nav{display:grid;align-content:start;gap:5px;overflow:auto;padding:12px 9px;border-right:1px solid var(--line);background:#17151f}
+.tutorial-nav-label{margin:7px 6px 0;font-size:11px;color:var(--muted);font-weight:650}
+.tutorial-nav-label:first-child{margin-top:0}
 .tutorial-nav button{min-width:0;justify-content:flex-start;gap:7px;border-color:transparent;background:transparent;color:var(--sub);font-size:12px;white-space:normal;text-align:left}
 .tutorial-nav button span{display:grid;place-items:center;width:19px;height:19px;flex:none;border:1px solid #514666;border-radius:5px;font:10px var(--mono)}
 .tutorial-nav button[aria-current="step"]{background:var(--tint);color:var(--ink);border-color:#5c4a76}
@@ -526,9 +529,11 @@ td code{overflow-wrap:anywhere;color:#dec8ff}
   .tutorial-nav{grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;padding:5px 7px;border:0;border-bottom:1px solid var(--line)}
   .tutorial-nav button{padding:0 4px;gap:4px;min-height:30px;font-size:11px}
   .tutorial-nav button span{width:15px;height:16px;font-size:9px}
+  .tutorial-nav-label{grid-column:1 / -1;margin:3px 4px 0}
   .tutorial-pages{padding-top:12px}
 }
 @media(max-width:430px){
+  #tutorialDialog .modal-head{padding-inline:12px}
   .tutorial-mock-split{grid-template-columns:minmax(0,1fr)}
   .tutorial-canvas,.tutorial-tree{border-right:0;border-bottom:1px solid #443953}
   .tutorial-canvas{min-height:84px}
@@ -776,19 +781,41 @@ td code{overflow-wrap:anywhere;color:#dec8ff}
   --stage-ridge:#3a2e23;--shadow:#100903ac;--modal-shade:#170f0abb;
   --checker-one:#271e17;--checker-two:#3a2e23;--brand-radius:6px;
 }
-:root {accent-color:var(--solid)}
+:root{
+  accent-color:var(--solid);
+  --launch-fill:#92dbb5;--launch-ink:#173429;
+  --guide-fill:#403225;--guide-edge:#795c3c;--guide-ink:#ffe5b5;
+}
+:root:is([data-theme=paper],[data-theme=frost]){
+  --launch-fill:#24674e;--launch-ink:#fff;
+  --guide-fill:#fff1da;--guide-edge:#c8a06d;--guide-ink:#67401c;
+}
+:root[data-theme=tide]{--launch-fill:#edb98a;--launch-ink:#3c2618}
 .top{height:49px;padding-inline:clamp(12px,2vw,28px);background:var(--rail);border-color:var(--line)}
+.top-identity{display:flex;align-items:center;gap:clamp(7px,1.6vw,20px)}
 .brand{gap:9px;white-space:nowrap}
 .brand-icon{width:29px;height:29px;border-radius:var(--brand-radius);background:var(--tint);border-color:var(--edge);color:var(--accent)}
 .brand-icon .icon{width:17px;height:17px}
 .top-right{gap:8px}
 .top-right button{min-height:28px;font-size:12px}
+.top #openTutorial{background:var(--guide-fill);border-color:var(--guide-edge);color:var(--guide-ink);min-height:32px;gap:6px;font-size:12px;font-weight:720}
+.top #openTutorial:hover:not(:disabled){border-color:var(--guide-ink)}
 #openCommands kbd{margin-left:1px}
 main{max-width:none;padding:10px clamp(10px,1.6vw,25px) 9px}
-.heading{margin-bottom:8px;align-items:center}
+.heading{margin-bottom:9px;align-items:center;gap:clamp(12px,1.8vw,26px)}
 .heading h1{font-size:18px;letter-spacing:.01em;white-space:nowrap;margin:0}
-.heading .cluster{gap:5px;margin:0;flex-wrap:wrap}
-.heading button{min-height:31px;padding-inline:10px;font-size:12px}
+.layout-header-actions{display:flex;flex:1;min-width:0;align-items:center;gap:8px clamp(8px,1.4vw,19px);flex-wrap:wrap}
+.heading-group{display:flex;align-items:center;gap:3px;flex-wrap:wrap}
+.heading-tools{padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.heading button{min-height:30px;padding-inline:9px;font-size:12px;gap:6px}
+.heading button .icon,#openTutorial .icon{width:15px;height:15px}
+.heading-tools button{background:transparent;border-color:transparent;color:var(--ink)}
+.heading-tools button .icon{color:var(--accent)}
+.heading-tools button[aria-expanded=true]{background:var(--tint);border-color:var(--edge)}
+.heading-delivery{gap:7px;margin-left:auto}
+.heading-delivery button{min-height:36px;padding-inline:12px;font-weight:740}
+.heading-delivery #openLivePreview{background:var(--launch-fill);border-color:var(--launch-fill);color:var(--launch-ink)}
+.heading-delivery #openLivePreview:hover:not(:disabled){filter:brightness(.94)}
 .dialog-strip{margin:0 0 8px;padding:5px 7px;background:var(--panel);color:var(--sub)}
 .dialog-strip>button,.dialog-strip>select{min-height:29px;font-size:12px}
 #dialogSelect{color:var(--ink)}
@@ -881,16 +908,23 @@ dialog::backdrop{background:var(--modal-shade)}
 body.canvas-focus .workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:1fr}
 body.canvas-focus :is(.left,.right){display:none}
 body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
-@media(max-width:880px){.heading h1{font-size:16px}.heading button{padding-inline:7px}}
+@media(max-width:1120px){.heading{flex-wrap:wrap;gap:7px 14px}}
+@media(max-width:930px){.heading h1{font-size:16px}.layout-header-actions{flex-basis:100%}}
+@media(max-width:880px){.heading button{padding-inline:7px}}
 @media(max-width:700px){
   main{padding:7px 9px}
   .top-right{gap:4px}
   #openCommands kbd{display:none}
-  .heading{align-items:flex-start;flex-wrap:wrap}
+  .heading{align-items:flex-start}
   .theme-choices{gap:5px}
   .theme-preview{grid-template-rows:12px 52px}
   .workspace{height:auto;min-height:0}
   body.canvas-focus .workspace{height:max(430px,calc(100dvh - 205px))}
+}
+@media(max-width:540px){
+  .top{height:auto;min-height:49px;flex-wrap:wrap;gap:4px 10px;padding-block:6px}
+  .top-right{margin-left:auto}
+  .heading-delivery{margin-left:0}
 }
 @media(max-width:390px){#openCommands .icon,#openThemes .icon{display:none}.top-right button{padding-inline:5px}}
 @media(max-width:590px){.theme-choices{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -938,7 +972,10 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
 </head>
 <body>
 <header class="top">
-  <div class="brand"><span id="brandIcon" class="brand-icon"></span> 对话框工作台 <small>SC2 UI EDITOR</small></div>
+  <div class="top-identity">
+    <div class="brand"><span id="brandIcon" class="brand-icon"></span> 对话框工作台 <small>SC2 UI EDITOR</small></div>
+    <button id="openTutorial" type="button" aria-haspopup="dialog">使用教程</button>
+  </div>
   <div class="top-right"><span class="save" id="saveStatus"><i></i>本地草稿</span>
     <button type="button" id="openCommands" class="quiet" aria-haspopup="dialog">命令 <kbd id="commandKey">Ctrl K</kbd></button>
     <button type="button" id="openThemes" class="quiet" aria-haspopup="dialog" aria-label="工作台主题"><span id="themeName">石墨</span></button>
@@ -950,7 +987,22 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
 <main>
   <div class="heading">
     <h1>UI 布局编辑器</h1>
-    <div class="cluster layout-header-actions"><button id="openTutorial" class="quiet" type="button" aria-haspopup="dialog">使用教程</button><button id="openProjectShelf" type="button" aria-controls="projectShelf" aria-expanded="false">项目管理</button><button id="openTemplates" type="button">布局模板</button><button id="openBindings" type="button">GUI 变量</button><button id="openAssetsTop" type="button">贴图库</button><button id="openFontStyles" type="button">字体样式</button><button id="openLayoutLibrary" type="button">SC2Layout</button><button id="openExport" class="primary" type="button">导出 Galaxy</button></div>
+    <div class="layout-header-actions">
+      <div class="heading-group heading-tools" role="group" aria-label="项目与布局">
+        <button id="openProjectShelf" type="button" aria-controls="projectShelf" aria-expanded="false">项目管理</button>
+        <button id="openTemplates" type="button" title="预览并套用对话框模板">布局模板</button>
+      </div>
+      <div class="heading-group heading-tools" role="group" aria-label="素材与接入">
+        <button id="openAssetsTop" type="button" title="查找和导入贴图">贴图库</button>
+        <button id="openFontStyles" type="button" title="管理地图字体样式和本地预览字体">字体样式</button>
+        <button id="openLayoutLibrary" type="button" title="导入和查看 SC2Layout 模板">SC2Layout</button>
+        <button id="openBindings" type="button" title="核对和批量编辑 GUI 全局变量绑定">GUI 变量</button>
+      </div>
+      <div class="heading-group heading-delivery" role="group" aria-label="测试与导出">
+        <button id="openLivePreview" type="button" aria-haspopup="dialog" title="在测试地图中查看布局、字体和贴图">实机预览</button>
+        <button id="openExport" class="primary" type="button" title="生成 Galaxy 脚本、GUI 变量清单和初始化动作">导出 Galaxy</button>
+      </div>
+    </div>
   </div>
   <div class="dialog-strip" aria-label="项目对话框">
     <label for="dialogSelect">对话框</label><select id="dialogSelect"></select><span id="dialogCount" class="faint"></span>
@@ -1071,6 +1123,21 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
   <header class="modal-head"><h2 id="projectSceneTitle">合成画布预览</h2><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
   <div class="modal-body"><div id="projectSceneLarge" class="scene-thumb" role="img" aria-label="项目合成画布"></div><p id="projectSceneStatus" role="status"></p></div>
 </dialog>
+<dialog id="livePreviewDialog" aria-labelledby="livePreviewTitle">
+  <header class="modal-head"><h2 id="livePreviewTitle">实机预览</h2><button class="icon-btn quiet" type="button" data-close aria-label="关闭"></button></header>
+  <div class="modal-body">
+    <p id="livePreviewTarget" class="hint"></p>
+    <p class="hint">进图后显示所选对话框。表达式使用预览值，玩家覆盖取当前玩家预览；未指定时按玩家 1。</p>
+    <div id="livePreviewScope" class="hint"></div>
+    <p id="livePreviewStatus" role="status"></p>
+    <details id="livePreviewIssues" hidden><summary>布局与素材提示</summary><ul id="livePreviewIssueList"></ul></details>
+    <div class="export-actions">
+      <button id="downloadLivePreview" type="button">下载预览包</button>
+      <button id="stageLivePreview" type="button" hidden>写入测试副本</button>
+      <button id="runLivePreview" class="primary" type="button" hidden>写入并测试</button>
+    </div>
+  </div>
+</dialog>
 <dialog id="renameProjectDialog" aria-labelledby="renameProjectTitle">
   <header class="modal-head"><h2 id="renameProjectTitle">重命名项目</h2><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
   <form id="renameProjectForm" class="modal-body">
@@ -1138,13 +1205,20 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
 </dialog>
 <dialog id="tutorialDialog" aria-labelledby="tutorialTitle">
   <header class="modal-head">
-    <div><h2 id="tutorialTitle">从工作台到银河编辑器</h2><p>做一个开局出现、点击后会更新文字的对话框。</p></div>
-    <button type="button" id="openTour">上手引导</button>
-    <button class="icon-btn quiet" type="button" data-close aria-label="关闭教程"></button>
+    <div><h2 id="tutorialTitle">使用教程</h2><p id="tutorialVersion"></p></div>
+    <div class="cluster tutorial-header-actions">
+      <button type="button" id="openTour">上手引导</button>
+      <button class="icon-btn quiet" type="button" data-close aria-label="关闭教程"></button>
+    </div>
   </header>
   <div class="tutorial-grid">
-    <nav class="tutorial-nav" aria-label="教程步骤">
-      <button type="button" data-tutorial-step="0" aria-controls="tutorialLayout" aria-current="step"><span>1</span>布置与绑定</button>
+    <nav class="tutorial-nav" aria-label="教程目录">
+      <p class="tutorial-nav-label">工作台</p>
+      <button type="button" data-tutorial-step="projects" aria-controls="tutorialProjects" aria-current="step">项目与模板</button>
+      <button type="button" data-tutorial-step="appearance" aria-controls="tutorialAppearance">表达式与格式刷</button>
+      <button type="button" data-tutorial-step="preview" aria-controls="tutorialLivePreview">实机预览</button>
+      <p class="tutorial-nav-label">接入银河编辑器</p>
+      <button type="button" data-tutorial-step="0" aria-controls="tutorialLayout"><span>1</span>布置与绑定</button>
       <button type="button" data-tutorial-step="1" aria-controls="tutorialVariables"><span>2</span>建全局变量</button>
       <button type="button" data-tutorial-step="2" aria-controls="tutorialScript"><span>3</span>粘贴完整脚本</button>
       <button type="button" data-tutorial-step="3" aria-controls="tutorialInit"><span>4</span>调用初始化</button>
@@ -1152,9 +1226,42 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
       <button type="button" data-tutorial-step="5" aria-controls="tutorialTest"><span>6</span>测试与迁移</button>
     </nav>
     <div class="tutorial-pages" id="tutorialPages">
-      <section id="tutorialLayout" class="tutorial-step" data-tutorial-page>
+      <section id="tutorialProjects" class="tutorial-step" data-tutorial-page>
+        <h3 tabindex="-1">管理项目与布局模板</h3>
+        <ul>
+          <li><strong>打开独立项目。</strong>用「项目 → 打开项目 JSON」载入文件。原草稿可从「项目管理」切回，即使两次导入的文件同名。</li>
+          <li><strong>保存到本地。</strong>在「项目管理」点「保存当前」。首次会引导选择目录，也可用「项目 → 保存项目 JSON」下载备份。</li>
+          <li><strong>从模板开始。</strong>在「布局模板」里先看效果，再添加到当前项目。常用的对话框可存为自定义模板。开启「合成画布」可一起检查项目中的全部对话框。</li>
+          <li><strong>更新地图素材。</strong>从回导窗口点「重新连接地图文件夹」，可重新读取文本和贴图。要导入另一张地图，用「项目 → 导入 SC2Components」打开独立项目。</li>
+        </ul>
+      </section>
+
+      <section id="tutorialAppearance" class="tutorial-step" data-tutorial-page hidden>
+        <h3 tabindex="-1">给文字加上贴图和变量</h3>
+        <ol>
+          <li>选中文本或按钮，在「外观 → 文字」把文字来源设为「表达式」，再打开「编辑表达式」。</li>
+          <li>用「插入贴图」选一张图，用 <code>~A~</code> 留出数值的位置。把 <code>~A~</code> 设为「整数」，填写 Galaxy 变量路径（例如 <code>gv_UI.Minerals[1]</code>）和预览值 <code>300</code>。</li>
+          <li>在「行内图片」调整宽、高和文字对齐。弹窗与画布会即时更新。行内图过高时，实机预览使用按字体高度缩放后的尺寸，并显示调整提示。</li>
+        </ol>
+        <h4>把外观套给另一个控件</h4>
+        <p>先选中样式来源，点画布工具栏的「格式刷」，再点目标控件。也可以在「控件样式」里勾选要复制的属性、保存样式，再批量应用。目标保留自己的文字和变量绑定。要复制尺寸、锚点或位置时，单独勾选对应属性。</p>
+      </section>
+
+      <section id="tutorialLivePreview" class="tutorial-step" data-tutorial-page hidden>
+        <h3 tabindex="-1">在游戏中检查界面</h3>
+        <div class="tutorial-flow">
+          <div><strong>选好范围</strong><p>合成画布开时预览全部对话框，关时预览当前页。</p></div>
+          <div><strong>写入测试副本</strong><p>通过本地助手打开工作台，点「实机预览 → 写入并测试」。</p></div>
+          <div><strong>核对画面</strong><p>进图查看位置、字体和贴图。文字表达式使用填写的预览值。</p></div>
+        </div>
+        <h4>首次接入测试副本</h4>
+        <p>准备目录名以 <code>-UI-Test</code> 结尾的组件地图副本，由本地助手接入预览脚本。也可以用「下载预览包」按包内「回导说明」配置一次脚本引用和开局调用，以后只需更新预览文件并重新进图。若副本会创建同一套旧界面，在副本里停用对应创建动作。</p>
+        <p class="tutorial-callout">用「实机预览」核对画面。需要让按钮响应、更新玩家数据时，继续使用「导出 Galaxy」和目录中的接入教程。</p>
+      </section>
+
+      <section id="tutorialLayout" class="tutorial-step" data-tutorial-page hidden>
         <h3 tabindex="-1">在工作台搭好练习界面</h3>
-        <p>添加一个文本和一个按钮，把它们拖开放置。文本写「等待点击」，按钮写「点我」。接着依次选中最外层对话框、文本和按钮，到右侧「绑定」填写变量 ID。</p>
+        <p>添加一个文本和一个按钮，把它们拖开放置。文本写「等待点击」，按钮写「点我」。接着依次选中最外层对话框、文本和按钮，到右侧「绑定」勾选「启用 GUI 全局变量绑定」并填写变量 ID。</p>
         <figure class="tutorial-figure">
           <div class="tutorial-mock" aria-hidden="true">
             <div class="tutorial-mock-bar">工作台 <span>已选中按钮「点我」</span></div>
@@ -1811,6 +1918,9 @@ gv_TutorialButton = TutorialUI_Button_2;</code></pre>
 const $ = (id) => document.getElementById(id);
 const iconPaths = {
   brand:'<path d="M12 2.8 20.7 8v8L12 21.2 3.3 16V8L12 2.8Z"/><path d="m7 9 5 5 5-5M12 14v4"/>',
+  guide:'<path d="M12 6v14M12 6C9 4 6 4 3 5v13c3-1 6-1 9 2 3-3 6-3 9-2V5c-3-1-6-1-9 1Z"/>',
+  folder:'<path d="M3 7V5h7l2 2h9v13H3Z"/>',
+  launch:'<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8m-6-13 5 3-5 3Z"/>',
   image:'<rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="m4 16 5-5 4 4 3-3 4.5 4.5"/><circle cx="15.5" cy="8.5" r="1.1"/>',
   button:'<rect x="2.8" y="6.7" width="18.4" height="10.6" rx="2.5"/><path d="M8 12h8"/>',
   panel:'<rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M4 8.5h16M8 12v4M12 12h5"/>',
@@ -1914,6 +2024,7 @@ const styleExamples = {
   "":"映射到游戏默认样式", ModCenterSize16:"战役样式示例 · 居中 16"
 };
 const STORE_KEY = "sc2-dialog-workbench-v1";
+const workbenchVersion = "1.0.6";
 const autoSelectDialogsKey = STORE_KEY+"-auto-select-dialogs";
 const tourKey = STORE_KEY+"-quick-start";
 const tourSteps = [
@@ -1922,7 +2033,8 @@ const tourSteps = [
   [".canvas-column","在画布上排版","拖动控件调整位置。按住 Alt 再用左键拖动可复制。用比例旁的小相机载入游戏截图，检查原生 HUD 的位置。"],
   [".side.right","设置属性和 GUI 绑定","在右侧调整坐标、外观和玩家覆盖，到「绑定」填写 Galaxy 变量 ID。"],
   ["#openAssetsTop","选择贴图","从贴图库选择游戏内路径，也可以载入本地贴图预览。"],
-  [".layout-header-actions","保存并导出","从「项目」保存项目 JSON。打开「导出 Galaxy」，依次查看脚本、GUI 变量和初始化动作。"]
+  ["#openProjectShelf","保存和切换项目","在「项目管理」保存当前项目。打开新的项目 JSON 后，可以在这里切回原草稿。"],
+  [".heading-delivery","测试或导出","用「实机预览」在测试地图里检查画面。要接入玩法逻辑，用「导出 Galaxy」获取脚本、GUI 变量清单和初始化动作。"]
 ];
 let tourIndex = -1;
 function placeTour() {
@@ -2116,12 +2228,16 @@ function paintFont(target,style,inline = false) {
   if (/^\d+(?:\.\d+)?$/.test(style.height) && Number(style.height) > 0) {
     css.fontSize = Math.min(400,Number(style.height))+"px";
   }
-  const family = previewFonts.get(styleFontKey(style.font));
-  if (family) css.fontFamily = '"'+family+'", sans-serif';
+  const fontKey = styleFontKey(style.font);
+  const family = previewFonts.get(fontKey);
+  if (family) {
+    css.fontFamily = '"'+family+'", sans-serif';
+    css.fontSynthesisWeight = "none";
+  }
   const color = sc2Color(style.textcolor);
   if (color) css.color = color;
   const flags = new Set(style.styleflags.toLowerCase().split(/[|\s]+/));
-  css.fontWeight = flags.has("bold") ? "700" : "400";
+  css.fontWeight = flags.has("bold") ? (fontKey==="ugcsg00m.ttf" && !family ? "500" : "700") : "400";
   if (flags.has("italic")) css.fontStyle = "italic";
   if (flags.has("underline")) css.textDecoration = "underline";
   if (flags.has("uppercase")) css.textTransform = "uppercase";
@@ -2172,7 +2288,7 @@ function textInlineImages(value) {
 }
 const textImageAlignments={
   Top:{label:"顶端",preview:"top"},UpperMiddle:{label:"中间偏上",preview:"0.22em"},
-  Middle:{label:"中间",preview:"middle"},AbsoluteMiddle:{label:"绝对居中",preview:"0em"},
+  Middle:{label:"中间",preview:"middle",offset:".38em"},AbsoluteMiddle:{label:"绝对居中",preview:"0em"},
   Bottom:{label:"底端",preview:"bottom"}
 };
 function textImageAlignment(value) {
@@ -2219,7 +2335,11 @@ function appendRichText(target,tokens) {
           image.style.height=token.height ? token.height+"px" : available ? "auto" : token.width+"px";
         }
         const alignment=textImageAlignment(token.alignment);
-        if (alignment) image.style.verticalAlign=textImageAlignments[alignment].preview;
+        if (alignment) {
+          const {preview,offset}=textImageAlignments[alignment];
+          image.style.verticalAlign=preview;
+          if (offset) image.style.translate="0 "+offset;
+        }
         if (!available) {
           image.classList.add("is-missing");
           image.append(icon("image"));
@@ -2348,9 +2468,13 @@ function previewExpressionText(node) {
     return escapeMarkup(token?.sample || expressionSamples[token?.type] || "~"+part.key+"~");
   }).join("");
 }
-function controlPreviewTextTokens(node) {
+function controlPreviewTextTokens(node,onResize) {
   const expr=activeTextExpression(node);
-  return parseRichText(expr ? previewExpressionText(node) : node.text,Boolean(expr) || node.richText);
+  const rich=Boolean(expr) || node.richText;
+  const value=expr ? previewExpressionText(node) : node.text;
+  const tokens=parseRichText(value,rich);
+  if (rich && value.includes("<")) fitLivePreviewInlineImages(tokens,node.style,onResize);
+  return tokens;
 }
 function compileTextExpression(node,playerIndex) {
   const expr=activeTextExpression(node);
@@ -3814,6 +3938,8 @@ function renderObserverGuide() {
 const componentLocales = ["zhcn","zhtw","enus"];
 const componentFontExt = /\.(ttf|otf|woff2?)$/i;
 const componentScriptPath = "Scripts/SC2WorkbenchUI.galaxy";
+const livePreviewEntry = "SC2WorkbenchPreview_Init";
+const livePreviewScript = "Scripts/SC2WorkbenchPreview.galaxy";
 const componentZipLimit = 256*1024*1024;
 let mapFolderRequest = 0;
 let mapFolderMode = "import";
@@ -4154,14 +4280,14 @@ function planLocalizedReturn(project,folder,locale) {
   }
   return {copies,conflicts,invalid};
 }
-function buildComponentReturn(project,folder,resources,exported) {
+function buildComponentReturn(project,folder,resources,exported,previewScope=null) {
   const rows=[],issues=[],used=new Map();
   const packagedResources = new Map();
   const localizedPaths = new Map();
   let fontStylePath;
   let ready=!exported.blocked;
   const metadata=project.componentSource;
-  if (metadata && !folder) {
+  if (!previewScope && metadata && !folder) {
     issues.push("请重新连接原地图目录。合并本地化文本时需要原文件，避免覆盖其他键。");
     ready=false;
   }
@@ -4175,9 +4301,9 @@ function buildComponentReturn(project,folder,resources,exported) {
     rows.push({path:target,payload,kind,description,convert});
     return target;
   };
-  if (exported.script) add(componentScriptPath,exported.script+"\n","Galaxy 脚本","由地图的自定义脚本加载");
+  if (exported.script) add(previewScope ? livePreviewScript : componentScriptPath,exported.script+"\n","Galaxy 脚本","由地图的自定义脚本加载");
   const locale=metadata?.locale ?? "zhCN";
-  if (folder || !metadata) {
+  if (!previewScope && (folder || !metadata)) {
     const {copies,conflicts,invalid}=planLocalizedReturn(project,folder,locale);
     const unread=(folder?.unreadTexts || []).filter((entry)=>!entry.locale || entry.locale===locale);
     if (copies.size && unread.length) {
@@ -4224,7 +4350,7 @@ function buildComponentReturn(project,folder,resources,exported) {
   }
   const size=rows.reduce((sum,{payload})=>sum+(typeof payload==="string"?payload.length*3:payload?.size ?? payload?.length ?? 0),0);
   if (size>componentZipLimit) {ready=false;issues.push("回导包超过 256 MB。请减少本次布局引用的大型素材。");}
-  const plan = {rows,issues:[...new Set(issues)],ready,exported,metadata};
+  const plan = {rows,issues:[...new Set(issues)],ready,exported,metadata,previewScope};
   const textures=resources.filter(({kind})=>kind==="贴图").map((row)=>({...row,...textureReturnInfo(row.value,folder)}));
   return {...plan,textures,manifest:buildAgentManifest(project,plan,resources,packagedResources)};
 }
@@ -4267,7 +4393,7 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
   const controlInfo = (node,layout) => {
     const binding = parseBinding(guiBindingValue(node));
     const handle = galaxyHandle(layout.prefix,node);
-    const intent = cleanHandoff(node.handoff) || templateIntent(layout,node);
+    const intent = plan.previewScope ? null : cleanHandoff(node.handoff) || templateIntent(layout,node);
     return {id:node.id,name:node.name,type:node.type || "dialog",
       galaxyHandle:handle,handleScope:plan.exported.scriptHandles?.has(handle) ? "script" : "createFunction",
       ...(layout.root.perPlayer ? {playerIndexed:true,galaxyReference:handle+"[player]"} : {}),
@@ -4297,9 +4423,12 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
   return {
     format:"sc2-ui-workbench-handoff",version:1,
     target:{format:"SC2Components",...(plan.metadata ? {sourceMap:plan.metadata.name,locale:plan.metadata.locale,
-      previousUIFunctions:plan.metadata.functions} : {})},
-    integration:{script:componentScriptPath,include:returnInclude,initialization:initActionFile,filesDirectory:returnFilesDirectory,
-      triggerImplementation:"gui",mapChanges:"mapCopy",
+      ...(!plan.previewScope ? {previousUIFunctions:plan.metadata.functions} : {})} : {})},
+    ...(plan.previewScope ? {preview:plan.previewScope} : {}),
+    integration:{script:plan.previewScope ? livePreviewScript : componentScriptPath,
+      include:plan.previewScope ? 'include "Scripts/SC2WorkbenchPreview"' : returnInclude,
+      initialization:initActionFile,filesDirectory:returnFilesDirectory,
+      triggerImplementation:plan.previewScope ? "visualPreview" : "gui",mapChanges:"mapCopy",
       ...(plan.exported.textRefresh ? {textRefresh:plan.exported.textRefresh} : {})},
     dialogs:project.dialogs.map(({id,layout})=>({
       id,prefix:layout.prefix,createFunction:layout.prefix+"_Create",renderPriority:layout.root.priority,
@@ -4323,6 +4452,19 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
   };
 }
 function mapReturnInstructions(plan) {
+  if (plan.previewScope) return [
+    "SC2 UI 工作台 v1.0.6 · 实机预览",
+    "",
+    (plan.previewScope.sceneOverview ? "合成画布已开启，预览全部对话框。" : "合成画布已关闭，预览当前对话框。"),
+    "预览范围见 ui_manifest.json 的 preview，按 files 中的路径将「地图文件」部署到专用测试副本。",
+    "首次接入时，在测试副本添加一次脚本引用和开局调用。可交给本地助手配置，也可手动接入。",
+    '编辑器接法：在顶层「自定义脚本」加入 include "Scripts/SC2WorkbenchPreview"。',
+    "把「"+initActionFile+"」放到测试副本的地图初始化动作中。组件副本也可由本地助手将调用接到 InitMap。",
+    "之后重复部署时更新预览文件，并重新启动测试局。响应脚本与玩法触发器由地图作者或本地 agent 另外接入。",
+    "同一套旧界面仍会创建时，请在测试副本停用对应的创建动作，再检查布局与贴图。",
+    "",
+    ...plan.issues
+  ].join("\r\n")+"\r\n";
   const variables=guiGlobals(plan.exported.plan,plan.exported.vote);
   const gui=variables
     .map((entry)=>entry.name+"  "+entry.type+(entry.max.length?"  索引 "+variableIndexRanges(entry," × "):"")+
@@ -4453,6 +4595,173 @@ async function automationExport(projectData,componentFiles=[]) {
   const exported=makeWorkspaceExport();
   const plan=buildComponentReturn(project,folder,projectResources(),exported);
   return {diagnostics:plan.manifest.diagnostics,archive:plan.ready ? await makeComponentZip(plan) : null};
+}
+
+function livePreviewScope() {
+  const sceneOverview = compositeCanvas();
+  return {sceneOverview,activeDialogId:activeDialog,
+    dialogIds:sceneOverview ? workspace.dialogs.map(({id})=>id) : [activeDialog]};
+}
+
+function previewScreenPlacement(root,id,screen) {
+  const roots = new Map(workspace.dialogs.map(({id,layout})=>[id,layout.root]));
+  let ancestor = root;
+  let anchor;
+  while (ancestor.relativeDialog) {
+    const parent = roots.get(ancestor.relativeDialog);
+    // An attachment to a fullscreen dialog already follows its target screen anchor.
+    anchor = parent.full ? ancestor.attachAnchor : parent.anchor;
+    ancestor = parent;
+  }
+  const rect = dialogBounds(screen).get(id);
+  const origin = toRect({...root,anchor,x:0,y:0},screen);
+  const ratios = anchorMap.get(anchor);
+  return {relativeDialog:0,anchor,x:(rect.x-origin.x)*(ratios.x===1 ? -1 : 1),
+    y:(rect.y-origin.y)*(ratios.y===1 ? -1 : 1)};
+}
+
+function fitLivePreviewInlineImages(tokens,baseStyle,onResize) {
+  function fit(parts,styleName) {
+    const height = Number(fontStyle(styleName)?.height);
+    // Leave four pixels of vertical space in the resolved SC2 text style.
+    const limit = Number.isFinite(height) && height > 0 ? Math.max(1,Math.floor(height)-4) : 0;
+    for (const part of parts) {
+      if (part.children) {
+        fit(part.children,part.kind==="s" && part.closed ? part.val : styleName);
+      } else if (part.kind==="image" && limit && part.height > limit) {
+        const oldHeight = part.height;
+        if (part.width) part.width = Math.max(1,Math.round(part.width*limit/oldHeight));
+        part.height = limit;
+        onResize?.(part.path,styleName,oldHeight,limit);
+      }
+    }
+  }
+  fit(tokens,baseStyle);
+}
+
+function buildLivePreview() {
+  const scope = livePreviewScope();
+  const included = new Set(scope.dialogIds);
+  const view = playerView || {player:1,active:true,groups:[]};
+  const imageChecks = [];
+  function visualItem(item) {
+    const result = {...viewedItem(item,view),guiBindingEnabled:false,binding:"",variants:[]};
+    if (activeTextExpression(result)) {
+      result.text = previewExpressionText(result);
+      result.textMode = "value";
+      result.richText = true;
+      result.textKey = "";
+    }
+    // Imported strings remain resolvable in the test map when no text is embedded.
+    if (result.text) result.textKey = "";
+    if (result.tooltip) result.tooltipKey = "";
+    return result;
+  }
+  const dialogs = workspace.dialogs.filter(({id})=>included.has(id)).map(({id,layout})=>{
+    const root = {...visualItem(layout.root),visible:true,audience:"all",perPlayer:false,groupVar:""};
+    if (!scope.sceneOverview && root.relativeDialog) Object.assign(root,previewScreenPlacement(root,id,layout.screen));
+    const nodes = layout.nodes.map((node)=>{
+      const item = visualItem(node);
+      if (textKinds.has(item.type) && item.richText && item.text.includes("<")) {
+        const before = imageChecks.length;
+        const tokens = controlPreviewTextTokens(item,(path,style,from,to)=>{
+          imageChecks.push({level:"warning",label:root.name+" / "+item.name,id:item.id,dialogId:id,
+            field:activeTextExpression(node) ? "field-textExpression" : "field-text",
+            message:"行内图 "+pathName(path)+" 已按字体样式 "+style+" 将预览高度从 "+from+" 调整为 "+to+"。"});
+        });
+        if (imageChecks.length!==before) item.text = encodeRichText(tokens);
+      }
+      return item;
+    });
+    return {id,layout:{...layout,prefix:"SC2Preview_"+String(id),recipe:"",root,nodes}};
+  });
+  const project = {...workspace,dialogs};
+  const exported = makeWorkspaceExport(project,scope.activeDialogId,true);
+  exported.checks.push(...imageChecks);
+  exported.script += "\nvoid "+livePreviewEntry+"() {\n"+
+    exported.init.split("\n").map((line)=>"    "+line).join("\n")+"\n}\n";
+  exported.init = livePreviewEntry+"();";
+  const folder = validConnectedFolder();
+  return buildComponentReturn(project,folder,projectResources(project,folder),exported,scope);
+}
+
+function installLivePreview() {
+  const dialog = $("livePreviewDialog");
+  const status = $("livePreviewStatus");
+  const target = $("livePreviewTarget");
+  const scopeLabel = $("livePreviewScope");
+  const downloadButton = $("downloadLivePreview");
+  const stageButton = $("stageLivePreview");
+  const runButton = $("runLivePreview");
+  const buttons = [downloadButton,stageButton,runButton];
+  const token = document.querySelector('meta[name="sc2-preview-bridge"]').content;
+  const bridge = location.hostname === "127.0.0.1" && token !== "offline";
+  if (bridge) {
+    const eventsUrl = "/api/preview/events?"+new URLSearchParams({token});
+    let events = new EventSource(eventsUrl);
+    window.addEventListener("pagehide",()=>events.close());
+    window.addEventListener("pageshow",({persisted})=>{
+      if (persisted) events = new EventSource(eventsUrl);
+    });
+  }
+  let busy = false;
+  let targetReady = false;
+  function updateButtons() {
+    for (const button of buttons) button.disabled = busy || (button !== downloadButton && !targetReady);
+  }
+  function showIssues(issues) {
+    showComponentIssues($("livePreviewIssues"),$("livePreviewIssueList"),issues);
+    $("livePreviewIssues").open = Boolean(issues.length);
+  }
+  $("openLivePreview").onclick = async ()=>{
+    const scope = livePreviewScope();
+    scopeLabel.textContent = scope.sceneOverview ? "合成画布已开启 · 全部 "+scope.dialogIds.length+" 张对话框" :
+      "合成画布已关闭 · 当前页「"+activeDocument().layout.root.name+"」";
+    showIssues([]);
+    status.textContent = "";
+    targetReady = false;
+    target.textContent = bridge ? "正在读取本地测试副本…" : "从 Windows 本地助手打开工作台即可写入并启动测试，也可以下载预览包。";
+    stageButton.hidden = runButton.hidden = !bridge;
+    updateButtons();
+    dialog.showModal();
+    if (!bridge) return;
+    try {
+      const response = await fetch("/api/preview", {cache:"no-store"});
+      if (!response.ok) throw new Error("本地助手无法读取测试副本。");
+      const {map} = await response.json();
+      target.textContent = "测试副本："+map;
+      targetReady = true;
+    } catch (error) { target.textContent = error.message; }
+    updateButtons();
+  };
+  async function submit(action) {
+    if (busy) return;
+    busy = true;
+    updateButtons();
+    status.textContent = "正在生成 Galaxy 预览脚本与素材…";
+    try {
+      const plan = buildLivePreview();
+      showIssues([...plan.exported.checks.map(({label,message})=>label+"："+message),...plan.issues]);
+      if (!plan.ready) throw new Error("预览生成失败，请检查布局与素材提示。");
+      const archive = await makeComponentZip(plan);
+      if (action === "download") {
+        download("sc2-ui-live-preview.zip",archive,"application/zip");
+        status.textContent = "已生成实机预览包。";
+        return;
+      }
+      status.textContent = "正在写入测试副本…";
+      const response = await fetch("/api/preview/"+action, {method:"POST",body:archive,
+        headers:{"X-SC2-Preview-Token":token}});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message);
+      status.textContent = result.message;
+    } catch (error) { status.textContent = error.message || "实机预览失败。"; }
+    finally { busy = false; updateButtons(); }
+  }
+  dialog.addEventListener("cancel",(event)=>{ if (busy) event.preventDefault(); });
+  downloadButton.onclick = ()=>submit("download");
+  stageButton.onclick = ()=>submit("stage");
+  runButton.onclick = ()=>submit("run");
 }
 
 function componentSelect(field,choices,value) {
@@ -5669,24 +5978,24 @@ function setSurfaceSize() {
   $("screenHint").textContent = (visibleCount === null ? "" : "玩家 "+playerView.player+" · "+visibleCount+" 张可见 · ")+
     "屏幕 "+model.screen.w+" × "+model.screen.h;
 }
-function textPreview(node,style) {
+function textPreview(node,style,onResize) {
   const text = el("span","ctrl-text");
   const sizes = node.style.match(/(?:Size|Font)(\d{1,3})/i);
   const defaultSize = node.demo ? (node.type === "button" ? 32 : node.id === 3 ? 63 : 29) : 30;
   text.style.fontSize = number(sizes?.[1],8,144,defaultSize)+"px";
   text.style.color = "#e7dff7";
   text.style.fontWeight = node.demo && node.id === 3 ? "760" :
-    /Bold$/i.test(node.style) ? "700" : node.type === "button" ? "640" : "490";
+    /Bold$/i.test(node.style) ? "700" : "400";
   paintFont(text,style);
   if (node.previewFont) text.style.fontSize = node.previewFont+"px";
   if (node.color) text.style.color = node.color;
   if (node.previewBold) text.style.fontWeight = "760";
   if (node.previewAlign) text.style.textAlign = node.previewAlign;
   if (node.previewGlow) text.style.textShadow = "0 1px 3px #006afa, 0 0 5px #4fa3ff";
-  renderControlText(text,node);
+  renderControlText(text,node,onResize);
   return text;
 }
-function renderControlText(text,node) {
+function renderControlText(text,node,onResize) {
   const localized=!activeTextExpression(node) && !node.text && Boolean(node.textKey);
   text.replaceChildren();
   text.classList.toggle("localization-placeholder",localized);
@@ -5695,7 +6004,7 @@ function renderControlText(text,node) {
     text.title = node.textKey;
   } else {
     text.removeAttribute("title");
-    appendRichText(text,controlPreviewTextTokens(node));
+    appendRichText(text,controlPreviewTextTokens(node,onResize));
   }
 }
 function updateCanvasControlText(item,state) {
@@ -5716,7 +6025,7 @@ const tiledModes = new Set(["Border","HorizontalBorder","EndCap"]);
 const textureImages = new WeakMap();
 const previewBlend = {Multiply:"multiply",Lighten:"lighten",Darken:"darken",Add:"plus-lighter",Subtract:"difference"};
 
-function texturePatches(mode,sw,sh,w,h,tiled,referenceWidth=sw) {
+function texturePatches(mode,sw,sh,w,h,tiled,referenceWidth=sw,clipBorder=false) {
   const patches = [];
   function part(sx,sy,width,height,x,y,dw,dh,turn = 0,repeat = "") {
     if (width > 0 && height > 0 && dw > 0 && dh > 0) patches.push({sx,sy,sw:width,sh:height,x,y,w:dw,h:dh,turn,repeat});
@@ -5748,12 +6057,15 @@ function texturePatches(mode,sw,sh,w,h,tiled,referenceWidth=sw) {
     const cw = Math.floor(sw/(vertical ? 4 : 10)), ch = Math.floor(sh/(vertical ? 8 : 1));
     const ex = Math.min(cw,Math.floor(w/2)), ey = Math.min(ch,Math.floor(h/2));
     const midW = w-2*ex, midH = h-2*ey;
+    const crop = vertical && clipBorder;
+    const cornerW = crop ? ex : cw, cornerH = crop ? ey : ch;
     const corners = [[0,0],[w-ex,0],[0,h-ey],[w-ex,h-ey]];
-    corners.forEach(([x,y],index) => part(index*cw,0,cw,ch,x,y,ex,ey));
+    corners.forEach(([x,y],index) => part(index*cw+(index%2 ? cw-cornerW : 0),
+      index<2 ? 0 : ch-cornerH,cornerW,cornerH,x,y,ex,ey));
     const rx = tiled ? "x" : "", ry = tiled ? "y" : "";
     if (vertical) {
-      part(0,ch,sw,ch,ex,0,midW,ey,0,rx);
-      part(0,2*ch,sw,ch,ex,h-ey,midW,ey,0,rx);
+      part(0,ch,sw,cornerH,ex,0,midW,ey,0,rx);
+      part(0,3*ch-cornerH,sw,cornerH,ex,h-ey,midW,ey,0,rx);
       // Rotated side strips keep their source row height as their horizontal thickness.
       const side = Math.min(ch,Math.floor(w/2));
       part(0,3*ch,sw,ch,w-side,ey,side,midH,1,ry);
@@ -5814,7 +6126,7 @@ function renderTexture(canvas,image,node,rect,embedded,atlasFrame = null,states 
   canvas.height = Math.max(1,Math.round(h*scale));
   const context = canvas.getContext("2d");
   context.scale(canvas.width/w,canvas.height/h);
-  for (const patch of texturePatches(node.imageMode,width,sh,w,h,node.tiled,referenceWidth)) {
+  for (const patch of texturePatches(node.imageMode,width,sh,w,h,node.tiled,referenceWidth,node.clipBorder)) {
     patch.sy+=startY;
     if (patch.repeat) repeatPatch(context,image,patch);
     else drawPatch(context,image,patch);
@@ -6303,7 +6615,11 @@ function embeddedSkinText(kind) {
 function renderDialogBackdrop(root,rect,explicitPath="") {
   const mapped=explicitPath ? null : defaultSkin("dialog");
   const path=explicitPath || mapped?.path;
-  const atlas = !explicitPath && (!path || !visualAssetEntry(assetKey(path))?.source) ? embeddedSkinFor("dialog") : null;
+  const entry = path && visualAssetEntry(assetKey(path));
+  const nativePath = entry?.source && /^ui_frame_default_(terran|protoss|zerg)\.dds$/i.test(pathName(path))
+    && (!mapped || mapped.imageMode==="Border" || mapped.imageMode==="Default");
+  const atlas = nativePath ? {...embeddedSkinRecipes.dialog,entry,name:pathName(path),tiled:mapped?.tiled ?? true} :
+    !explicitPath && !entry?.source ? embeddedSkinFor("dialog") : null;
   if (!path && !atlas) return "原生背景 · 近似预览";
   const face=el("div","ctrl-face");
   root.append(face);
@@ -6314,7 +6630,7 @@ function renderDialogBackdrop(root,rect,explicitPath="") {
     face.append(layer);
     loadTextureImage(atlas.entry,(image,immediate)=>{
       if (!immediate && !layer.isConnected) return;
-      renderTexture(layer,image,{imageMode:atlas.mode,tiled:atlas.tiled},rect,true);
+      renderTexture(layer,image,{imageMode:atlas.mode,tiled:atlas.tiled,clipBorder:true},rect,true);
       face.classList.add("has-texture");
     },()=>layer.remove());
     return atlas.entry.source.nativePreview ? "内置原生背景" : "本地背景贴图";
@@ -7743,13 +8059,22 @@ function openTextExpression(item) {
   function renderPreview() {
     const expression=draftExpression(), preview=$("expressionPreview");
     const state={...item,textMode:"expression",textExpression:expression};
-    preview.style.color=item.color || "";
-    preview.replaceChildren();
-    appendRichText(preview,controlPreviewTextTokens(state));
+    const style=fontStyle(item.style);
+    const rect=bounds.get(item.id) || item;
+    const face=el("div","expression-preview-face");
+    face.style.width="min(100%, "+rect.w+"px)";
+    face.style.minHeight=Math.min(rect.h,120)+"px";
+    const fitted=[];
+    face.append(textPreview(state,style,(_path,_style,from,to)=>fitted.push(from+" → "+to)));
+    alignTextPreview(face,state,style);
+    preview.replaceChildren(face);
     const missing=[...new Set(textImagePaths(expression.template).filter((path)=>!inlineImageAsset(path)).map(pathName))];
     const imageStatus=$("expressionImageStatus");
-    imageStatus.hidden=!missing.length;
-    imageStatus.textContent=missing.length ? "贴图库中缺少预览文件。可在「插入贴图 → 导入文件」载入 "+missing.join("、")+"。" : "";
+    const details=[];
+    if (fitted.length) details.push("实机预览行内图高度 "+[...new Set(fitted)].join("、")+"。");
+    if (missing.length) details.push("可在「插入贴图 → 导入文件」载入 "+missing.join("、")+"。");
+    imageStatus.hidden=!details.length;
+    imageStatus.textContent=details.join(" ");
     expressionCanvasDraft={item,state};
     updateCanvasControlText(item,state);
     const {errors}=expressionFields(expression,model.root);
@@ -10903,14 +11228,15 @@ function playerInstanceInit(layout,plan,actions,target,expressionActions=[]) {
   appendScopedActions(lines,actions);
   return instanceActions(layout,lines);
 }
-function makeWorkspaceExport() {
-  const documents = workspace.dialogs;
+function makeWorkspaceExport(project=workspace,currentDialog=activeDialog,visualPreview=false) {
+  const documents = project.dialogs;
   const registry = bindingRegistry(documents.map((doc) => doc.layout));
   const plans = new Map(), issues = [], prefixes = new Map(), actions = [], docActions = new Map();
   const layoutsById = new Map(documents.map(({id,layout}) => [id,layout]));
   const hasPlayerInstances = documents.some(({layout})=>layout.root.perPlayer);
-  const classicPositions = dialogBounds(screenProfiles.classic);
-  const screen = model.screen, placements = dialogBounds(screen);
+  const classicPositions = dialogBounds(screenProfiles.classic,null,project);
+  const currentLayout = layoutsById.get(currentDialog);
+  const screen = currentLayout.screen, placements = dialogBounds(screen,null,project);
   for (const doc of documents) {
     const layout = doc.layout;
     const plan = bindingPlan(null,true,layout,registry);
@@ -10933,13 +11259,13 @@ function makeWorkspaceExport() {
     docActions.set(doc.id,rows);
     actions.push(...rows);
   }
-  const local = plans.get(activeDialog);
-  const vote = votePlan(local);
-  if (vote) issues.push(...vote.issues.filter((issue) => !issue.recipeOnly).map((issue) => ({...issue,dialogId:activeDialog})));
+  const local = plans.get(currentDialog);
+  const vote = visualPreview ? null : votePlan(local);
+  if (vote) issues.push(...vote.issues.filter((issue) => !issue.recipeOnly).map((issue) => ({...issue,dialogId:currentDialog})));
   const blocked = issues.some((issue) => issue.level === "error");
   const expressionNodes = new Map(documents.map(({id,layout})=>[id,layout.nodes.filter(activeTextExpression)]));
   const hasExpressions = [...expressionNodes.values()].some((nodes)=>nodes.length);
-  const managed = hasPlayerInstances || hasExpressions || documents.length > 1 || actions.length > 0;
+  const managed = visualPreview || hasPlayerInstances || hasExpressions || documents.length > 1 || actions.length > 0;
   const audienceRows = [...documents.map(({layout:{root}}) => {
     const binding=parseBinding(guiBindingValue(root));
     return {dialog:root.name,item:"对话框",ref:binding ? (root.perPlayer ? playerBindingReference(binding,"玩家编号") : binding.ref) : "",
@@ -11272,9 +11598,9 @@ function makeGalaxy(prefix,plan,layout,managed,scriptHandles) {
           call("libNtve_gf_SetDialogItemTextWriteoutDuration",name,(node.writeoutMs/1000).toFixed(3),layoutPlayers);
           call("libNtve_gf_SetDialogItemTextWriteout",name,"true",layoutPlayers);
         }
+        if (node.style) call("libNtve_gf_SetDialogItemStyle",name,galaxyString(node.style),layoutPlayers);
         if (!activeTextExpression(node)) call("DialogControlSetPropertyAsText",name,"c_triggerControlPropertyText",layoutPlayers,
           galaxyText(node.text,node.textKey,node.color,node.richText));
-        if (node.style) call("libNtve_gf_SetDialogItemStyle",name,galaxyString(node.style),layoutPlayers);
       }
       if (node.tooltip || node.tooltipKey) {
         call("libNtve_gf_SetDialogItemTooltip",name,galaxyText(node.tooltip,node.tooltipKey),layoutPlayers);
@@ -11510,7 +11836,7 @@ function voteGuideText(vote) {
     title+"\n"+steps.map((step,index) => (index+1)+". "+step).join("\n"))].join("\n\n");
 }
 
-function projectResources() {
+function projectResources(project=workspace,folder=validConnectedFolder(project)) {
   const rows = new Map();
   const append = (kind,value,owner,status,action = null,location=null) => {
     if (!value) return;
@@ -11522,7 +11848,6 @@ function projectResources() {
       row.locations.push({...location,label:owner});
     }
   };
-  const folder=validConnectedFolder();
   const texture = (path,owner,location=null) => {
     if (!path) return;
     const {status,saved,file}=textureReturnInfo(path,folder);
@@ -11560,7 +11885,7 @@ function projectResources() {
       else texture(dependency,file.path);
     }
   }
-  for (const {id,layout} of workspace.dialogs) {
+  for (const {id,layout} of project.dialogs) {
     for (const node of [layout.root,...layout.nodes]) {
       const owner = node.id ? layout.root.name+" / "+node.name : node.name;
       if (node.id ? imageKinds.has(node.type) : node.background) {
@@ -12592,6 +12917,10 @@ function installTutorial() {
   const steps = Array.from(dialog.querySelectorAll("[data-tutorial-step]"));
   const pages = steps.map((step) => $(step.getAttribute("aria-controls")));
   const last = pages.length-1;
+  const integrationStart = pages.findIndex(({id})=>id==="tutorialLayout");
+  const stepForTab = {variables:"tutorialVariables",script:"tutorialScript",init:"tutorialInit",players:"tutorialClick",
+    checks:"tutorialTest",vote:"tutorialTest",mapAudit:"tutorialVariables",resources:"tutorialTest",changes:"tutorialTest"};
+  $("tutorialVersion").textContent = "SC2 UI 工作台 v"+workbenchVersion+" · 实机预览分支";
   let index = 0;
   let returnToExport = false;
 
@@ -12603,7 +12932,9 @@ function installTutorial() {
       else steps[i].removeAttribute("aria-current");
     });
     $("tutorialPages").scrollTop = 0;
-    $("tutorialProgress").textContent = "第 "+(index+1)+" 步，共 "+pages.length+" 步";
+    $("tutorialProgress").textContent = index < integrationStart ?
+      "工作台 "+(index+1)+" / "+integrationStart :
+      "接入第 "+(index-integrationStart+1)+" 步，共 "+(pages.length-integrationStart)+" 步";
     $("tutorialPrev").disabled = index === 0;
     $("tutorialNext").textContent = index < last ? "下一步" : returnToExport ? "返回导出" : "完成";
     if (focus) pages[index].querySelector("h3").focus({preventScroll:true});
@@ -12611,12 +12942,13 @@ function installTutorial() {
   function openTutorial(fromExport = false) {
     if (dialog.open) return;
     returnToExport = fromExport && exportDialog.open;
+    let first = 0;
     if (returnToExport) {
       exportDialog.close();
-      const stepForTab = {variables:1,script:2,init:3,players:4,checks:5,vote:5,mapAudit:1,resources:5,changes:5};
-      index = stepForTab[exportState.tab] ?? 0;
+      const page = stepForTab[exportState.tab] || "tutorialLayout";
+      first = pages.findIndex(({id})=>id===page);
     }
-    showStep(index,false);
+    showStep(first,false);
     dialog.showModal();
     pages[index].querySelector("h3").focus({preventScroll:true});
   }
@@ -13707,7 +14039,8 @@ function openCommandPalette() {
       ["布局模板","grid","openTemplates"],["本地贴图库","asset","openAssetsTop"],["字体样式","label","openFontStyles"],
       ["工作台主题","theme","openThemes"],["导出 Galaxy","code","openExport"],
       ["导出地图回导包","code","openMapReturn"],["GUI 变量","list","openBindings"],
-      ["参考截图","screenshot","openScreenshot"],["对话框层级","list","openDialogStack"],["使用教程","emblem","openTutorial"]
+      ["参考截图","screenshot","openScreenshot"],["对话框层级","list","openDialogStack"],
+      ["实机预览","launch","openLivePreview"],["使用教程","guide","openTutorial"]
     ].map(([name,kind,id])=>({name,kind,run:()=>$(id).click()})),
     ...Object.entries(kinds).map(([kind,{label}])=>({name:"添加"+label,kind,run:()=>{
       preview = false;
@@ -13873,8 +14206,9 @@ for (const [type,meta] of Object.entries(kinds)) {
   });
   $("palette").append(tile);
 }
-for (const [id,name] of Object.entries({brandIcon:"brand",openAssetsTop:"asset",openAssetsSide:"asset",openExport:"code",
-  openCommands:"search",openThemes:"theme",toggleFocus:"focus",
+for (const [id,name] of Object.entries({brandIcon:"brand",openTutorial:"guide",openProjectShelf:"folder",openTemplates:"grid",
+  openAssetsTop:"asset",openAssetsSide:"asset",openFontStyles:"label",openLayoutLibrary:"panel",openBindings:"list",
+  openLivePreview:"launch",openExport:"code",openCommands:"search",openThemes:"theme",toggleFocus:"focus",
   undo:"undo",redo:"redo",toggleGrid:"grid",toggleSnap:"snap",openScreenshot:"screenshot"})) $(id).prepend(icon(name));
 $("fileSummary").append(icon("chevron"));
 document.querySelectorAll("[data-close]").forEach((node) => {
@@ -14086,12 +14420,16 @@ $("projectInput").onchange = async (event) => {
   const file = event.target.files[0];
   event.target.value = "";
   if (!file) return;
-  try {
-    if (file.size > 24*1024*1024) throw new Error("项目文件大于 24 MB。");
-    const source = JSON.parse(await file.text());
-    replaceProject(readWorkspace(source),source.activeDialog);
-    notify("已打开项目 "+file.name+"。");
-  } catch (error) { notify(error.message || "项目 JSON 无法读取。"); }
+  await runProjectShelfOperation(async ()=>{
+    try {
+      const project=await readLocalProjectFile(file);
+      project.projectName ||= string(localProjectName(file.name),80);
+      const kept=await stashShelfProject();
+      restoreShelfProject(project,null,null,"draft:"+createShelfId());
+      notify("已作为新项目打开 "+project.projectName+"。"+
+        (kept ? "可在「项目管理」切回原项目。" : "原草稿保留在当前会话。"));
+    } catch (error) { notify(error.message || "项目 JSON 无法读取。"); }
+  });
 };
 $("dialogSelect").onchange = (event) => selectDialog(Number(event.target.value));
 installDialogStack();
@@ -14107,12 +14445,13 @@ const voteButtonPreviews = {"vote_button":"data:image/png;base64,iVBORw0KGgoAAAA
 const voteButtonArchive = "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";
 setupVoteButtonTextures();
 setupNativeAtlasTextures();
+installLivePreview();
 render();
 installTour();
 new ResizeObserver(setSurfaceSize).observe($("viewport"));
 if (new URLSearchParams(location.search).get("localAgent")==="1") {
   window.SC2WorkbenchAutomation=Object.freeze({
-    apiVersion:1,version:"1.0.5",exportProject:automationExport,
+    apiVersion:1,version:workbenchVersion,exportProject:automationExport,
     downloadArchive:(archive)=>download("sc2-ui-return.zip",archive,"application/zip")
   });
 } else restoreAssetFolders();
