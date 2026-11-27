@@ -3,17 +3,19 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import shutil
 import tempfile
-from zipfile import ZipFile
+from xml.etree import ElementTree
+from zipfile import BadZipFile, ZipFile
 
 MAP_LIMIT = 256 * 1024 * 1024
-SCRIPT = "scripts/sc2workbenchui.galaxy"
+SCRIPT_PATTERN = r"scripts/sc2workbench(?!preview\.galaxy$)[a-z0-9_]*\.galaxy"
+HASH_PATTERN = r"[0-9a-f]{64}"
 RESOURCE_PATTERNS = {
     "texture": r"assets/textures/.+\.(?:dds|tga|png|webp|jpe?g|gif|bmp|avif)",
-    "fontFile": r"localizeddata/fonts/.+\.(?:ttf|otf|woff2?|ttc)",
+    "fontFile": r"(?:localizeddata|assets)/fonts/.+\.(?:ttf|otf|woff2?|ttc)",
     "fontStyles": r"ui/fontstyles\.sc2style",
     "layoutFile": r"ui/layout/.+\.sc2layout",
     "localizedTextFile": r"localizeddata/(?:gamestrings|triggerstrings|objectstrings)\.txt",
@@ -38,7 +40,7 @@ def relative_path(value):
     if not isinstance(value, str) or re.search(r'[\\:\x00-\x1f<>|"*?]', value):
         raise ValueError(f"路径格式无效：{value!r}")
     path = PurePosixPath(value)
-    if path.is_absolute() or not path.parts or str(path) != value or ".." in path.parts:
+    if path.is_absolute() or not path.parts or str(path) != value or any(part == ".." or part.endswith((" ", ".")) or PureWindowsPath(part).is_reserved() for part in path.parts):
         raise ValueError(f"路径超出测试副本或格式无效：{value!r}")
     return path
 
@@ -48,77 +50,131 @@ def map_path(target, value):
     for part in (path, *path.parents):
         if part == target:
             break
-        if part.is_symlink() or (hasattr(part, "is_junction") and part.is_junction()):
+        if (part.is_symlink() or
+                (part.exists() and getattr(part.lstat(), "st_file_attributes", 0) & 0x400)):
             raise ValueError(f"测试副本内含重定向路径：{part}")
     if not path.resolve().is_relative_to(target):
         raise ValueError(f"路径超出测试副本：{value}")
     return path
 
 
-def allow_map_path(kind, path):
-    path = path.lower()
+def integration_scripts(manifest):
+    integration = manifest["integration"]
+    script = integration["script"]
+    scripts = integration.get("scripts", [script])
+    if (not isinstance(scripts, list) or not scripts or scripts[0] != script or
+            any(not re.fullmatch(SCRIPT_PATTERN, str(path).lower()) for path in scripts) or
+            len({path.casefold() for path in scripts}) != len(scripts) or
+            integration.get("include") != "\n".join(f'include "{path[:-7]}"' for path in scripts)):
+        raise ValueError("清单中的 Galaxy 模块路径或引用无效。")
+    return set(scripts)
+
+
+def allow_map_path(kind, path, scripts, triggers):
     if kind == "galaxyScript":
-        return path == SCRIPT
+        return path in scripts
+    if kind == "triggerData":
+        return bool(triggers and path.casefold() == triggers["path"].casefold())
     pattern = RESOURCE_PATTERNS.get(kind)
-    return bool(pattern and re.fullmatch(r"(?:(?:base|[a-z]{4})\.sc2(?:data|assets)/)?" + pattern, path))
+    return bool(pattern and re.fullmatch(r"(?:(?:base|[a-z]{4})\.sc2(?:data|assets)/)?" + pattern, path.lower()))
 
 
-def plan_revision(archive, target):
+def bundle_manifest(archive):
     entries = archive.infolist()
-    if len({entry.filename for entry in entries}) != len(entries):
-        raise ValueError("增量包存在重复的文件名。")
-    manifest_entry = archive.getinfo("ui_manifest.json")
-    if manifest_entry.file_size > 4 * 1024 * 1024:
-        raise ValueError("清单超过 4 MB。")
-    manifest = json.loads(archive.read(manifest_entry))
-    revision = manifest.get("revision", {})
-    if (manifest.get("format"), manifest.get("version")) != ("sc2-ui-workbench-handoff", 1):
+    if len({entry.filename.casefold() for entry in entries}) != len(entries):
+        raise ValueError("回导包含重复路径。")
+    if sum(entry.file_size for entry in entries) > MAP_LIMIT:
+        raise ValueError("回导包超过 256 MB。")
+    info = archive.getinfo("ui_manifest.json")
+    if info.file_size > 16 * 1024 * 1024:
+        raise ValueError("回导清单过大。")
+    manifest = json.loads(archive.read(info))
+    if (manifest.get("format"), manifest.get("version")) != ("sc2-ui-workbench-handoff", 1) or manifest.get("preview"):
         raise ValueError("回导包格式不受支持。")
-    if not manifest.get("diagnostics", {}).get("ready") or not revision.get("reuseInitialization"):
-        raise ValueError("该副本需要先完成或复核 GUI 初始化接入。请查看包内回导说明。")
-    if target.name.casefold() != revision.get("targetFolder", "").casefold():
+    return manifest
+
+
+def verify_target(target, manifest, approval=None):
+    review = manifest["collaboration"] if approval is not None else manifest["revision"]
+    if not manifest.get("diagnostics", {}).get("ready"):
+        raise ValueError("回导包未通过导出检查。")
+    if approval is not None:
+        if review.get("id") != approval or review.get("kind") not in {"existingIntegration", "agentIntegration"}:
+            raise ValueError("回导包与当前定稿不匹配。")
+        if Path(review["target"]).resolve(strict=True) != target:
+            raise ValueError("回导包与当前定稿的目标路径不匹配。")
+    elif target.name.casefold() != review.get("targetFolder", "").casefold():
         raise ValueError("目录名和增量包记录的测试副本不一致。")
-    map_script = revision.get("targetMapScript", {})
-    path = relative_path(map_script.get("path"))
-    map_hash = map_script.get("sha256", "")
-    if path.name.casefold() != "mapscript.galaxy" or not isinstance(map_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", map_hash):
-        raise ValueError("清单缺少原 MapScript.galaxy 的校验记录。")
-    if digest_file(map_path(target, str(path))) != map_hash:
-        raise ValueError("MapScript.galaxy 已修改，请在工作台重新核对差异。")
-    if any(row.get("status") in {"新增", "冲突"} for row in revision.get("guiBindings", [])):
-        raise ValueError("清单仍有待新增或冲突的 GUI 绑定。")
-    changes = {row["path"]: row for row in revision.get("files", []) if row["status"] in {"新增", "更新"}}
-    if any(row.get("status") == "冲突" for row in revision.get("files", [])):
-        raise ValueError("增量包仍有文件冲突。")
-    if len(changes) != len(manifest.get("files", [])):
-        raise ValueError("文件清单和增量记录不一致。")
-    result = []
+    return review
+
+
+def check_fingerprint(target, row, filename):
+    path = relative_path(row["path"])
+    checksum = row["sha256"]
+    if path.name.casefold() != filename or not re.fullmatch(HASH_PATTERN, checksum):
+        raise ValueError(f"目标 {path} 的校验记录无效。")
+    if digest_file(map_path(target, str(path))) != checksum:
+        raise ValueError(f"目标 {path} 已改变，请重新扫描和导出。")
+
+
+def check_trigger_xml(data):
+    # Check the bytes that will reach the editor, including their encoding and declaration.
+    if re.search(rb"<!DOCTYPE|<!ENTITY", data.replace(b"\x00", b""), re.I):
+        raise ValueError("Triggers 含有不支持的 XML 声明。")
+    try:
+        if ElementTree.fromstring(data).tag != "TriggerData":
+            raise ValueError("Triggers 缺少 TriggerData 根节点。")
+    except ElementTree.ParseError as error:
+        raise ValueError(f"回导包的 Triggers 无法解析：{error}") from error
+
+
+def plan_revision(archive, target, manifest, review, stage_assets=False):
+    if not stage_assets and (review.get("kind") == "agentIntegration" or
+            (review.get("kind") is None and not review.get("reuseInitialization"))):
+        raise ValueError("此定稿需要 Agent 接入触发器。可用 --stage-assets 先部署已审核文件。")
+    if not stage_assets and any(row.get("status") in {"新增", "冲突", "复核"} for row in review.get("guiBindings", [])):
+        raise ValueError("清单仍有待处理的 GUI 绑定。")
+    scripts = integration_scripts(manifest)
+    triggers = review.get("targetTriggers")
+    fingerprints = {}
     used = set()
-    total = 0
-    for file in manifest["files"]:
-        name = file["mapPath"]
-        row = changes.get(name)
-        raw_path = relative_path(name)
-        if (not row or name.casefold() in used or not allow_map_path(file["type"], name) or
-                file["archivePath"] != "地图文件/" + str(raw_path)):
-            raise ValueError(f"文件路径、类型或增量记录不一致：{name}")
-        used.add(name.casefold())
-        entry = archive.getinfo(file["archivePath"])
-        total += entry.file_size
-        if total > MAP_LIMIT:
-            raise ValueError("增量文件超过 256 MB。")
+    for row in review["files"]:
+        name = row["path"]
         dest = map_path(target, name)
-        before = row.get("beforeSha256")
-        after = row.get("afterSha256")
-        if (row["status"] == "新增") != (before is None) or not isinstance(after, str) or not re.fullmatch(r"[0-9a-f]{64}", after):
-            raise ValueError(f"增量状态或内容哈希无效：{name}")
+        status = row["status"]
+        before, after = row["beforeSha256"], row["afterSha256"]
+        if (name.casefold() in used or status not in {"新增", "更新", "相同"} or
+                (before is None) != (status == "新增") or not re.fullmatch(HASH_PATTERN, after) or
+                (before is not None and not re.fullmatch(HASH_PATTERN, before)) or
+                (before == after) != (status == "相同")):
+            raise ValueError(f"增量记录无效或仍有冲突：{name}")
         if digest_file(dest) != before:
-            raise ValueError(f"{name} 已改变，请重新导出增量包。")
-        result.append((dest, entry, before, after))
+            raise ValueError(f"目标文件已改变，请重新扫描和导出：{name}")
+        used.add(name.casefold())
+        fingerprints[name] = row
+    result = []
+    packed = set()
+    for item in manifest["files"]:
+        name = item["mapPath"]
+        row = fingerprints.get(name)
+        if (not row or name in packed or not allow_map_path(item["type"], name, scripts, triggers) or
+                item["archivePath"] != "地图文件/" + name):
+            raise ValueError(f"文件路径、类型或校验记录不一致：{name}")
+        packed.add(name)
+        entry = archive.getinfo(item["archivePath"])
+        data = archive.read(entry)
+        if digest_bytes(data) != row["afterSha256"]:
+            raise ValueError(f"增量内容的哈希不一致：{entry.filename}")
+        if item["type"] == "triggerData":
+            check_trigger_xml(data)
+        if row["status"] != "相同":
+            result.append((map_path(target, name), entry, row["beforeSha256"], row["afterSha256"]))
+    if any(name not in packed for name, row in fingerprints.items() if row["status"] != "相同"):
+        raise ValueError("回导包缺少变更文件。")
     return result
 
 
-def apply_revision(archive, changes, target):
+def apply_revision(archive, changes, target, verify_context):
     backup = Path(tempfile.mkdtemp(prefix=target.name + "-ui-backup-", dir=target.parent))
     applied = []
     try:
@@ -133,6 +189,7 @@ def apply_revision(archive, changes, target):
                 shutil.copy2(dest, original)
                 if digest_file(original) != before:
                     raise ValueError(f"备份时发现文件已改变：{dest}")
+        verify_context()
         for dest, _, before, _ in changes:
             if digest_file(dest) != before:
                 raise ValueError(f"写入前发现文件已改变：{dest}")
@@ -149,7 +206,9 @@ def apply_revision(archive, changes, target):
                 if before is None:
                     dest.unlink()
                 else:
-                    shutil.copy2(backup / "原文件" / dest.relative_to(target), dest)
+                    restored = backup / "rollback.tmp"
+                    shutil.copy2(backup / "原文件" / dest.relative_to(target), restored)
+                    os.replace(restored, dest)
             except OSError as error:
                 rollback_errors.append(str(error))
         if rollback_errors:
@@ -158,75 +217,52 @@ def apply_revision(archive, changes, target):
     return backup
 
 
-def verify_agent_package(archive, target, approval):
-    names = archive.namelist()
-    if len(names) != len(set(names)):
-        raise ValueError("回导包含重复路径。")
-    info = archive.getinfo("ui_manifest.json")
-    if info.file_size > 16 * 1024 * 1024:
-        raise ValueError("回导清单过大。")
-    manifest = json.loads(archive.read(info))
-    review = manifest.get("collaboration", {})
-    if (manifest.get("format"), manifest.get("version")) != ("sc2-ui-workbench-handoff", 1):
-        raise ValueError("回导包格式不受支持。")
-    if review.get("id") != approval or not manifest.get("diagnostics", {}).get("ready"):
-        raise ValueError("回导包与当前定稿不匹配。")
-    if Path(review["target"]).resolve(strict=True) != target:
-        raise ValueError("回导包与当前定稿的目标路径不匹配。")
-    script = review["targetMapScript"]
-    if Path(script["path"]).name.casefold() != "mapscript.galaxy" or digest_file(map_path(target, script["path"])) != script["sha256"]:
-        raise ValueError("目标 MapScript.galaxy 已改变，请重新读取目标地图和定稿。")
-    triggers = review.get("targetTriggers")
-    if triggers and digest_file(map_path(target, triggers["path"])) != triggers["sha256"]:
-        raise ValueError("目标 Triggers 已改变，请重新读取目标地图和定稿。")
-    fingerprints = {row["path"]: row for row in review["files"]}
-    for row in review["files"]:
-        if row["status"] == "冲突" or digest_file(map_path(target, row["path"])) != row["beforeSha256"]:
-            raise ValueError(f"目标文件已改变，请重新读取目标地图和定稿：{row['path']}")
-    for item in manifest["files"]:
-        path = item["mapPath"]
-        name = "地图文件/" + path
-        if item["archivePath"] != name or path not in fingerprints:
-            raise ValueError(f"回导包路径与定稿不符：{path}")
-        if archive.getinfo(name).file_size > MAP_LIMIT or digest_bytes(archive.read(name)) != fingerprints[path]["afterSha256"]:
-            raise ValueError(f"回导包内容与定稿不符：{path}")
-    return review["kind"]
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("zip_file", type=Path)
     parser.add_argument("test_map", type=Path)
-    parser.add_argument("--apply", action="store_true", help="核对后实际写入测试副本并保留备份")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--apply", action="store_true", help="核对后写入已完成接入的测试副本")
+    mode.add_argument("--stage-assets", action="store_true", help="部署已审核资源、UI 模块和 GUI 变量文件，另行接入玩法触发器")
     parser.add_argument("--review-id", help="校验协作定稿编号、目标路径和文件哈希")
     args = parser.parse_args()
-    target = args.test_map.resolve(strict=True)
-    if not target.is_dir() or ((args.apply or not args.review_id) and
-            not re.search(r"-UI-Test(?:\.SC2Map|\.SC2Components)?$", target.name, re.IGNORECASE)):
-        raise SystemExit("增量写入请选择以 -UI-Test 命名的组件地图副本。")
-    if not any(path.name.lower() == "componentlist.sc2components" and path.is_file() for path in target.iterdir()):
-        raise SystemExit("测试副本缺少 ComponentList.SC2Components。")
     try:
+        supplied = args.test_map
+        if supplied.is_symlink() or getattr(supplied.lstat(), "st_file_attributes", 0) & 0x400:
+            raise ValueError("测试副本不能是链接或重解析点。")
+        target = supplied.resolve(strict=True)
+        writing = args.apply or args.stage_assets
+        if not target.is_dir() or ((writing or not args.review_id) and
+                not re.search(r"-UI-Test(?:\.SC2Map|\.SC2Components)?$", target.name, re.IGNORECASE)):
+            raise ValueError("增量写入请选择以 -UI-Test 命名的组件地图副本。")
+        if not any(path.name.lower() == "componentlist.sc2components" and path.is_file() for path in target.iterdir()):
+            raise ValueError("测试副本缺少 ComponentList.SC2Components。")
+        if args.stage_assets and not args.review_id:
+            raise ValueError("--stage-assets 需要用户确认的 --review-id。")
         with ZipFile(args.zip_file) as archive:
-            if args.review_id:
-                kind = verify_agent_package(archive, target, args.review_id)
-                if not args.apply:
-                    print(kind)
-                    return
-                if kind != "existingIntegration":
-                    raise ValueError("此定稿需要 Agent 接入触发器，无法直接增量写入。")
-            changes = plan_revision(archive, target)
-            for dest, entry, before, after in changes:
-                if digest_bytes(archive.read(entry)) != after:
-                    raise ValueError(f"增量内容的哈希不一致：{entry.filename}")
+            manifest = bundle_manifest(archive)
+            review = verify_target(target, manifest, args.review_id)
+
+            def verify_context():
+                check_fingerprint(target, review["targetMapScript"], "mapscript.galaxy")
+                if review.get("targetTriggers"):
+                    check_fingerprint(target, review["targetTriggers"], "triggers")
+
+            verify_context()
+            changes = plan_revision(archive, target, manifest, review,
+                                    stage_assets=args.stage_assets or (not writing and bool(args.review_id)))
+            if args.review_id and not writing:
+                print(review["kind"])
+                return
+            for dest, _, before, _ in changes:
                 print(("更新" if before else "新增"), dest.relative_to(target))
-            if args.apply and changes:
-                print("已更新测试副本，备份位于", apply_revision(archive, changes, target))
+            if writing and changes:
+                print("已更新测试副本，备份位于", apply_revision(archive, changes, target, verify_context))
             elif not changes:
                 print("测试副本无需更新。")
             else:
                 print("核对通过。加上 --apply 可写入测试副本。")
-    except (OSError, KeyError, ValueError, TypeError, RuntimeError) as error:
+    except (OSError, KeyError, ValueError, TypeError, RuntimeError, BadZipFile) as error:
         raise SystemExit(str(error)) from None
 
 

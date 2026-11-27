@@ -9,6 +9,7 @@ import json
 import mimetypes
 import os
 from pathlib import Path
+import stat
 import re
 import secrets
 import subprocess
@@ -68,7 +69,7 @@ MAP_CONFIG = STATE / "map.txt"
 OFFLINE = b'<meta name="sc2-preview-bridge" content="offline">'
 PREVIEW_INCLUDE = 'include "Scripts/SC2WorkbenchPreview"'
 PREVIEW_CALL = "SC2WorkbenchPreview_Init();"
-VERSION = "2026-11-27.4"
+VERSION = "2026-11-27.5"
 
 
 def map_script(root):
@@ -179,6 +180,60 @@ def test_map(path):
     return root
 
 
+def pick_return_map():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except ImportError as error:
+        raise ValueError("本地助手没有 tkinter，请使用浏览器选择目录。") from error
+    try:
+        window = tk.Tk()
+    except tk.TclError as error:
+        raise ValueError("本地助手无法打开目录选择器，请使用浏览器选择目录。") from error
+    window.withdraw()
+    window.attributes("-topmost", True)
+    try:
+        return filedialog.askdirectory(title="选择回导地图的 -UI-Test 组件目录", mustexist=True)
+    finally:
+        window.destroy()
+
+
+def map_file_stamp(info):
+    return f"{info.st_size}:{info.st_mtime_ns}:{info.st_ctime_ns}:{info.st_ino}"
+
+
+def map_scan(root):
+    rows = []
+    for directory, folders, files in os.walk(root, followlinks=False):
+        base = Path(directory)
+        for name in folders[:]:
+            info = (base / name).lstat()
+            if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                folders.remove(name)
+        for name in files:
+            relative = (base / name).relative_to(root).as_posix()
+            info = (base / name).lstat()
+            if not stat.S_ISREG(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                continue
+            rows.append({"path": relative, "size": info.st_size, "stamp": map_file_stamp(info)})
+            if len(rows) > 20000:
+                raise ValueError("目标地图的组件文件超过 20,000 个。")
+    return sorted(rows, key=lambda row: row["path"])
+
+
+def read_map_snapshot_file(root, relative, stamp):
+    path = destination(root, relative)
+    if not path.is_file() or path.stat().st_size > LIMIT:
+        raise ValueError("目标地图文件不存在或超过大小限制。")
+    with path.open("rb") as stream:
+        if map_file_stamp(os.fstat(stream.fileno())) != stamp:
+            raise ValueError("扫描后目标文件已修改，请重新扫描：" + relative)
+        payload = stream.read(LIMIT + 1)
+        if len(payload) > LIMIT or map_file_stamp(os.fstat(stream.fileno())) != stamp:
+            raise ValueError("读取期间目标文件已修改，请重新扫描：" + relative)
+    return payload
+
+
 def save_map(path):
     MAP_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     temp = MAP_CONFIG.with_name(MAP_CONFIG.name + ".tmp")
@@ -256,6 +311,8 @@ class PreviewSession:
         self.lock = Lock()
         self.token = secrets.token_urlsafe(32)
         self.targets = {}
+        self.return_maps = {}
+        self.map_picker = Lock()
         self.root = None
         self.state = None
         self.game_pid = None
@@ -311,6 +368,38 @@ class PreviewSession:
             save_map(path)
             return {"map": str(self.root), "targetRevision": self.revision,
                     "message": "已切换测试副本。"}
+
+    def scan_return_map(self, args):
+        if args == {"choose": True}:
+            if not self.map_picker.acquire(blocking=False):
+                raise ValueError("已有地图目录选择器打开。")
+            try:
+                selected = pick_return_map()
+            finally:
+                self.map_picker.release()
+            if not selected:
+                return {"cancelled": True}
+            root = test_map(selected)
+            with self.lock:
+                token = next((key for key, path in self.return_maps.items() if self._key(path) == self._key(root)), None)
+                if not token:
+                    if len(self.return_maps) >= 32:
+                        self.return_maps.pop(next(iter(self.return_maps)))
+                    token = secrets.token_urlsafe(24)
+                    self.return_maps[token] = root
+        elif set(args) == {"mapId"} and isinstance(args["mapId"], str):
+            token = args["mapId"]
+            root = self.return_map(token)
+        else:
+            raise ValueError("请通过目录选择器授权目标地图。")
+        return {"mapId": token, "path": str(root), "name": root.name, "files": map_scan(root)}
+
+    def return_map(self, token):
+        with self.lock:
+            root = self.return_maps.get(token)
+        if root is None:
+            raise ValueError("地图目录授权已失效，请重新选择回导地图。")
+        return test_map(root)
 
     def client_open(self):
         with self.lock:
@@ -481,12 +570,22 @@ class PreviewHandler(BaseHTTPRequestHandler):
                 payload = store.settings()
                 payload["projects"] = store.list_projects()
                 payload["dataRoot"] = str(store.root)
+                payload["mapScan"] = True
+                payload["annotationPatches"] = True
                 self.json_response(200, payload)
             elif path == "/api/workbench/project":
                 name = query.get("name", [""])[0]
                 self.json_response(200, store.read_project(name))
             elif path == "/api/workbench/asset-tree":
                 self.json_response(200, store.asset_tree(query.get("source", [""])[0]))
+            elif path == "/api/workbench/map-file":
+                # Use a header credential for map files, which can contain unreleased map logic.
+                if not self.headers.get("X-SC2-Preview-Token"):
+                    self.json_response(403, {"message": "读取地图文件需要工作台 token。"})
+                    return
+                root = self.session.return_map(query.get("mapId", [""])[0])
+                payload = read_map_snapshot_file(root, query.get("path", [""])[0], query.get("stamp", [""])[0])
+                self.send_content(200, "application/octet-stream", payload)
             elif path == "/api/workbench/asset-file":
                 asset = store.asset_file(query.get("source", [""])[0], query.get("path", [""])[0])
                 payload = asset.read_bytes()
@@ -511,6 +610,10 @@ class PreviewHandler(BaseHTTPRequestHandler):
                 self.json_response(200, store.rename_project(body.get("oldName"), body.get("newName")))
             elif path == "/api/workbench/settings":
                 self.json_response(200, store.update_settings(body.get("settings")))
+            elif path == "/api/workbench/annotations":
+                self.json_response(200, store.patch_annotations(body.get("author"), body.get("changes")))
+            elif path == "/api/workbench/map-scan":
+                self.json_response(200, self.session.scan_return_map(body))
             elif path == "/api/workbench/pick-folder":
                 self.json_response(200, store.pick_folder(body.get("source")))
             else:

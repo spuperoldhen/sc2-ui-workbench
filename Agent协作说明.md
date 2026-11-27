@@ -7,11 +7,9 @@
 1. Agent 启动协作页并打开项目。使用 Node.js 22 或更新版，并安装 Edge 或 Chrome。协作页是一张可见的标签页。
 2. 打开或切换项目后，点击「恢复 Agent」（如果显示「暂停 Agent」说明已经启用）。用户只需要在浏览器里完成项目/地图目录选择和最终定稿确认。
 3. Agent 分批添加或修改控件。你会在同一画布上看到改动，可以照常拖动、改属性或撤销。点击「暂停 Agent」可暂时自己编辑。选中控件后点击「指出问题」，留言会连同控件编号交给 Agent。
-4. 回导前在协作栏点击「选择回导地图」，选取这次要写入的组件地图目录。Agent 完成后会提交定稿摘要。核对画布和目标路径后，打开「查看定稿」，点击「确认定稿并交给 Agent 回导」。
+4. 回导前在协作栏点击「选择回导地图」，选取名称以 `-UI-Test.SC2Map` 或 `-UI-Test.SC2Components` 结尾的组件目录。定稿和导出会自动复扫；Agent 在磁盘更新目标文件后也可以点「重新扫描目标目录」。Agent 完成后会提交定稿摘要。核对画布和目标路径后，打开「查看定稿」，点击「确认定稿并交给 Agent 回导」。
 
-`agent.mjs start` 会启动本地工作台助手，并用 `127.0.0.1` 协作页代替 `file://`。项目文件、标注、收藏和素材目录保存在工作台目录的 `data/` 中，普通启动器和协作页共用；更换浏览器后不需要重新授权素材目录。
-
-本版 EXE 已包含更新后的助手。从旧版升级时，请先关闭原启动器打开的所有工作台标签页，待旧助手退出，再由 Agent 使用 `agent.mjs start` 启动。多个浏览器同时编辑标注和收藏时，由更新后的 `tools/local_store.py` 在本机合并。
+`agent.mjs start` 会启动本地工作台助手，并用 `127.0.0.1` 协作页代替 `file://`。项目文件、标注、收藏和素材目录保存在工作台目录的 `data/` 中，普通启动器和协作页共用。升级后关闭旧工作台标签页，再用 `node agent.mjs start` 启动更新后的本地助手。浏览器独立使用时，支持目录句柄的浏览器同样可以复扫。只支持传统目录上传的浏览器需要重新选取目录，再确认定稿。
 
 第一次使用可以从原工作台保存项目 JSON，再让 Agent 用 `open` 打开，或在协作页导入。已有浏览器集成也可以直接打开同目录 `index.html?agentCollab=1`，通过原有浏览器控制通道调用 `window.SC2WorkbenchCollaboration`。
 
@@ -28,6 +26,8 @@
 | `node agent.mjs review review.json` | 请求用户查看定稿，返回 `review.id` |
 | `node agent.mjs publish 定稿ID 回导.zip [integration.json]` | 等待用户确认，导出回导包，按接入类型继续 |
 | `node agent.mjs claim 定稿ID 回导.zip` | 仅对 `agentIntegration` 核对定稿、文件和目标路径，开始本地接入；`existingIntegration` 已由 `publish` 自动处理 |
+| `node agent.mjs map-refresh` | 立即复扫已授权目标，沿用同一目录的布局定稿 |
+| `node agent.mjs stage-assets 定稿ID 回导.zip` | 领取首次接入定稿，校验并部署清单中的文件，保留玩法接入任务 |
 | `node agent.mjs report 定稿ID result.json` | 把接入或编译结果显示在工作台协作栏 |
 
 如需指定浏览器，使用环境变量 `SC2_WORKBENCH_CHROME`，值为其可执行文件的完整路径。协作调试端口默认为本机 9226，可用 `SC2_WORKBENCH_PORT` 修改；工作台页面端口默认为 8765，可用 `SC2_WORKBENCH_HELPER_PORT` 修改。现有测试副本的增量回导和接入前校验需 Python 3.9 或更新版。如命令名不是 `python`，可用 `SC2_WORKBENCH_PYTHON` 指定。
@@ -71,7 +71,8 @@
 支持的操作
 
 - `addDialog` 可省略 `layout` 以添加空白对话框，或传入工作台版本 3 的完整布局。
-- `updateDialog` 使用 `dialogId` 和 `fields`，可选 `prefix`。
+- `updateDialog` 使用 `dialogId` 和 `fields`，可选 `prefix` 和 `previewStates`。
+- `setExportOptions` 的 `fields` 可设置 `scriptPath`（须为 `Scripts/SC2Workbench*.galaxy`）、`scriptMode`（`perDialog` 按对话框拆分，省略或清空则合并）和 `pruneUnusedFontStyles`（布尔值）。相同选项也可在「回导地图 → 回导设置」修改。
 - `addControl` 使用 `dialogId`、`type` 和 `fields`。
 - `updateControl` 使用 `dialogId`、`controlId` 和 `fields`。字段参考 `get` 返回的项目。绑定新控件时填入确切的标识符。
 - `removeControl` 使用 `dialogId` 和 `controlId`。同一批需先删除或迁移依赖该控件的子控件和附着关系。
@@ -79,18 +80,45 @@
 - `setFontStyles` 使用 `xml` 提交完整字体样式文件。保留项目已有样式条目。
 - 给按钮配置正式的事件、条件与动作时，先用工作台的控件行为面板保存一项，再从 `get` 读取该控件的 `handoff.behavior` 格式。
 
+### 多状态预览
+
+通过 `updateDialog` 的 `previewStates` 提交多套样例。以下示例会切换 12 号标签、13 号立绘和 20 号锁定标记。对话框本身用 `controlId: 0`。控件还支持 `opacity`（0–100）及色调 `tint`。在画布「预览」或「实机预览」选择样例，正式包使用项目保存的初始属性。
+
+```json
+{
+  "op": "updateDialog",
+  "dialogId": 1,
+  "fields": {},
+  "previewStates": [
+    {
+      "id": "raynorLocked",
+      "name": "雷诺 · 已锁定",
+      "controls": [
+        {"controlId": 12, "text": "吉姆·雷诺", "color": "#e4ba70"},
+        {"controlId": 13, "path": "Assets\\Textures\\ui_loading_coop_hero_raynor.dds"},
+        {"controlId": 20, "visible": true}
+      ]
+    }
+  ]
+}
+```
+
 ### 定稿和回导
 
-`review.json` 填写当前 `session`、`revision`、用户选定组件地图的完整本机路径 `target` 和定稿摘要 `summary`。如果本次涉及修改地图触发器，设置 `requiresIntegration: true`。用摘要说明发生哪些布局或玩法改动，准备把脚本接到哪里。收到用户留言或新的项目改动后，旧定稿失效，Agent 重新读取当前项目再提交。
+`review.json` 填写当前 `session`、`revision`、定稿摘要 `summary`。本地助手授权的目标已提供 `targetPath`，可省略 `target`。浏览器直接授权时，填写组件目录的完整本机路径 `target`。如果本次涉及修改地图触发器，设置 `requiresIntegration: true`。用摘要说明发生哪些布局或玩法改动，准备把脚本接到哪里。收到留言、切换目标或改变布局后，Agent 重新读取当前项目再提交定稿。同一目录复扫保留定稿；仅脚本或绑定变化时，用户可在原定稿中确认更新。
 
 `publish` 等待用户确认后保存 ZIP。对于已连接工作台脚本、初始化和 GUI 绑定都相符的 `-UI-Test` 副本，它校验目标哈希，备份旧文件并写入增量文件。输出会回到协作栏。
 
-首次接入、需要新建 GUI 变量、动作或事件变更时，结果为 `agentIntegration`。本地 Agent 可以通过以下任一方式接续：
+首次接入、需要新建 GUI 变量、动作或事件变更时，结果为 `agentIntegration`。先关闭编辑器中的测试副本，再通过以下任一方式接续。
 
-如果定稿包的 `files` 已列出 `triggerData`，随包的 `stage.py` 会核对原文件哈希，把生成的 `Triggers` 和译文写到已确认的地图副本，并保留备份。接着连接初始化动作并编译地图。包内包含数组初始值时，在创建界面前执行对应的初始化动作。
+- **先部署已审核文件。** 运行 `stage-assets`，部署清单中的贴图、字体、UI 脚本、本地化和变量同步后的 `Triggers`，并为旧文件保留备份。它已领取定稿。接下来在银河编辑器接入实际事件和动作并编译，再用 `report` 回报。也可直接运行 `python apply_ui_revision.py 回导.zip 目标目录 --review-id 定稿ID --stage-assets` 执行文件部署。
 
 - **使用本地 Agent 的地图编辑能力。** 仅当 `publish` 返回 `agentIntegration`（且没有传入适配器）时，运行 `claim`；`existingIntegration` 已由 `publish` 自动领取并写入，不要再执行 `claim`。读取包内 `ui_manifest.json`、初始化动作、全局变量和触发器交接。根据现有地图结构接入，复用同名兼容变量和实际初始化位置，处理素材登记，打开编辑器编译地图副本，再用 `report` 返回结果。结果 JSON 包含 `ok` 布尔值和 `message` 文本。
 - **挂接已经可运行的地图接入命令。** 给 `publish` 传入本地 `integration.json`。它包含 `command` 可执行文件路径和 `args` 字符串数组。工具核对定稿、目标及文件哈希后调用该命令，在原有参数后追加回导 ZIP 路径和目标地图路径。接入命令成功退出后，其输出会显示在协作栏。此包提供上面提到的增量写入工具和接入入口。首次接入所用的本地地图编辑及编译命令由实际地图工程提供。
+
+项目默认输出 `Scripts/SC2Workbench_<前缀>.galaxy`，已存在且绑定同一组创建函数的工作台模块会沿用原路径。接入时以 `integration.scripts`、`integration.include` 为准；普通回导包的预检工具位于 `skills/sc2-galaxy-bridge/scripts/stage.py`。协作定稿包用 `apply_ui_revision.py` 核对目标哈希并部署。
+
+较长的首次初始化会生成一行调用和「初始化接线.galaxy.txt」。辅助函数需在地图全局变量和 UI 模块声明之后可见。如果编辑器无法保证声明顺序，在原初始化位置使用「完整GUI初始化动作.txt」。接入前检查清单中的贴图实际尺寸、预期尺寸和来源。用「素材目录」连接含原始 DDS 的提取目录，可以自动回填图标浏览器的缩略图。清单的 `cleanupCandidates` 来自项目布局基线，删除前应查其他界面及触发器的引用。
 
 例如，如果本地已有处理该地图的脚本，可以把 `command` 设置为 `python`，把脚本的绝对路径作为 `args` 第一项。脚本读取追加的两个参数，按地图实际触发器结构接入和编译。选择已有脚本时，先确认它能接收这两个参数。
 

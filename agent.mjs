@@ -14,15 +14,18 @@ const helperUrl = "http://127.0.0.1:"+helperPort+"/";
 const json = async (path)=>JSON.parse((await readFile(path,"utf8")).replace(/^\ufeff/,""));
 const print = (value)=>console.log(JSON.stringify(value,null,2));
 
-async function helperReady() {
+const helperVersion = "2026-11-27.5";
+async function runningHelperVersion() {
   try {
     const response=await fetch(helperUrl+"api/preview/version",{signal:AbortSignal.timeout(1500)});
-    return response.ok;
-  } catch { return false; }
+    return response.ok ? (await response.json()).version || "unknown" : "";
+  } catch { return ""; }
 }
 
 async function ensureHelper() {
-  if (await helperReady()) return helperUrl;
+  const running=await runningHelperVersion();
+  if (running===helperVersion) return helperUrl;
+  if (running) throw new Error("检测到旧版工作台助手。请关闭它的标签页或退出进程，再执行 agent.mjs start。");
   const script=join(directory,"tools","live_preview.py");
   if (!existsSync(script)) return null;
   const python=pythonExecutable();
@@ -32,7 +35,7 @@ async function ensureHelper() {
   child.unref();
   for (let index=0;index<20;index++) {
     await new Promise((done)=>setTimeout(done,500));
-    if (await helperReady()) return helperUrl;
+    if (await runningHelperVersion()===helperVersion) return helperUrl;
   }
   throw new Error("本地工作台没有启动成功。请确认 Python 3.9+ 和 tools/live_preview.py 可用。");
 }
@@ -168,9 +171,9 @@ function pythonExecutable() {
   return "python";
 }
 
-function verifyArchive(id,path,target,apply=false) {
+function verifyArchive(id,path,target,mode="") {
   return execFileSync(pythonExecutable(),[
-    join(directory,"apply_ui_revision.py"),path,target,"--review-id",id,...(apply ? ["--apply"] : [])
+    join(directory,"apply_ui_revision.py"),path,target,"--review-id",id,...(mode ? [mode] : [])
   ],{encoding:"utf8",env:{...process.env,PYTHONUTF8:"1"}}).trim();
 }
 
@@ -178,9 +181,9 @@ async function run() {
   const [command,...args] = process.argv.slice(2);
   if (command==="start" && !args.length) return launch();
   const arity = {get:[0],status:[0],open:[1],edit:[1],review:[1],export:[2],publish:[2,3],claim:[2],report:[2],
-    "asset-find":[0,1],"asset-preview":[2],"asset-tag":[1]};
+    "map-refresh":[0],"stage-assets":[2],"asset-find":[0,1],"asset-preview":[2],"asset-tag":[1]};
   if (!Object.hasOwn(arity,command) || !arity[command].includes(args.length)) {
-    throw new Error("用法：agent.mjs start | get | status | open 项目.json | edit 编辑.json | review 定稿.json | export 定稿ID 回导.zip | publish 定稿ID 回导.zip [接入配置.json] | claim 定稿ID 回导.zip | report 定稿ID 结果.json | asset-find [筛选.json] | asset-preview 素材.json 预览.png | asset-tag 标注.json");
+    throw new Error("用法：agent.mjs start | get | status | open 项目.json | edit 编辑.json | review 定稿.json | export 定稿ID 回导.zip | publish 定稿ID 回导.zip [接入配置.json] | claim 定稿ID 回导.zip | report 定稿ID 结果.json | map-refresh | stage-assets 定稿ID 回导.zip | asset-find [筛选.json] | asset-preview 素材.json 预览.png | asset-tag 标注.json");
   }
   const api = await connect();
   try {
@@ -198,12 +201,23 @@ async function run() {
     }
     if (command==="edit") return print(await api.evaluate("edit",[await json(args[0])]));
     if (command==="review") return print(await api.evaluate("requestReview",[await json(args[0])]));
-    if (command==="claim") {
+    if (command==="map-refresh") return print(await api.evaluate("refreshTargetFolder"));
+    if (command==="claim" || command==="stage-assets") {
       const [id,archive] = args;
       const {review} = await api.evaluate("getState",[false]);
       if (review?.id!==id || review.status!=="exported") throw new Error("此定稿尚未导出，或已失效。");
-      verifyArchive(id,resolve(archive),review.target);
-      return print(await api.evaluate("claimApply",[id]));
+      const path=resolve(archive);
+      const kind=verifyArchive(id,path,review.target);
+      if (command==="claim") return print(await api.evaluate("claimApply",[id]));
+      if (kind!=="agentIntegration") throw new Error("已有接入的定稿可由 publish 直接写入。");
+      const approval=await api.evaluate("claimApply",[id]);
+      try {
+        const staging=verifyArchive(id,path,approval.target,"--stage-assets");
+        return print({...approval,staging});
+      } catch (error) {
+        await api.evaluate("reportApply",[id,{ok:false,message:(error.stderr || error.message).trim()}]);
+        throw error;
+      }
     }
     if (command==="report") return print(await api.evaluate("reportApply",[args[0],await json(args[1])]));
     const [id,path,adapterPath] = args;
@@ -220,7 +234,7 @@ async function run() {
     let message;
     try {
       if (approval.kind==="existingIntegration") {
-        message = verifyArchive(id,result.archive,approval.target,true);
+        message = verifyArchive(id,result.archive,approval.target,"--apply");
       } else {
         message = execFileSync(adapter.command,[...adapter.args,result.archive,approval.target],{encoding:"utf8"}).trim();
       }
