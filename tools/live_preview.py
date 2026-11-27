@@ -69,7 +69,7 @@ MAP_CONFIG = STATE / "map.txt"
 OFFLINE = b'<meta name="sc2-preview-bridge" content="offline">'
 PREVIEW_INCLUDE = 'include "Scripts/SC2WorkbenchPreview"'
 PREVIEW_CALL = "SC2WorkbenchPreview_Init();"
-VERSION = "2026-11-27.5"
+VERSION = "2026-11-27.6"
 
 
 def map_script(root):
@@ -199,7 +199,7 @@ def pick_return_map():
 
 
 def map_file_stamp(info):
-    return f"{info.st_size}:{info.st_mtime_ns}:{info.st_ctime_ns}:{info.st_ino}"
+    return f"{info.st_size}:{info.st_mtime_ns}:{info.st_ino}"
 
 
 def map_scan(root):
@@ -369,6 +369,16 @@ class PreviewSession:
             return {"map": str(self.root), "targetRevision": self.revision,
                     "message": "已切换测试副本。"}
 
+    def return_map_token(self, root):
+        with self.lock:
+            token = next((key for key, path in self.return_maps.items() if self._key(path) == self._key(root)), None)
+            if not token:
+                if len(self.return_maps) >= 32:
+                    self.return_maps.pop(next(iter(self.return_maps)))
+                token = secrets.token_urlsafe(24)
+                self.return_maps[token] = root
+            return token
+
     def scan_return_map(self, args):
         if args == {"choose": True}:
             if not self.map_picker.acquire(blocking=False):
@@ -380,13 +390,23 @@ class PreviewSession:
             if not selected:
                 return {"cancelled": True}
             root = test_map(selected)
-            with self.lock:
-                token = next((key for key, path in self.return_maps.items() if self._key(path) == self._key(root)), None)
-                if not token:
-                    if len(self.return_maps) >= 32:
-                        self.return_maps.pop(next(iter(self.return_maps)))
-                    token = secrets.token_urlsafe(24)
-                    self.return_maps[token] = root
+            if self.store is not None:
+                try:
+                    self.store.update_settings({"returnMapPath": str(root)})
+                except (OSError, ValueError):
+                    pass
+            token = self.return_map_token(root)
+        elif args.get("restore") is True and set(args) <= {"restore", "projectKey"}:
+            project_key = args.get("projectKey", "")
+            settings = self.store.settings() if self.store is not None else {}
+            saved = ""
+            if isinstance(project_key, str) and project_key:
+                saved = (settings.get("returnMapBindings") or {}).get(project_key, "")
+            saved = saved or settings.get("returnMapPath", "")
+            if not saved:
+                raise ValueError("没有记住的回导地图，请选择一次。")
+            root = test_map(saved)
+            token = self.return_map_token(root)
         elif set(args) == {"mapId"} and isinstance(args["mapId"], str):
             token = args["mapId"]
             root = self.return_map(token)

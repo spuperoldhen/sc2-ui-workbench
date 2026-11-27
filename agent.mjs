@@ -14,7 +14,7 @@ const helperUrl = "http://127.0.0.1:"+helperPort+"/";
 const json = async (path)=>JSON.parse((await readFile(path,"utf8")).replace(/^\ufeff/,""));
 const print = (value)=>console.log(JSON.stringify(value,null,2));
 
-const helperVersion = "2026-11-27.5";
+const helperVersion = "2026-11-27.6";
 async function runningHelperVersion() {
   try {
     const response=await fetch(helperUrl+"api/preview/version",{signal:AbortSignal.timeout(1500)});
@@ -40,7 +40,61 @@ async function ensureHelper() {
   throw new Error("本地工作台没有启动成功。请确认 Python 3.9+ 和 tools/live_preview.py 可用。");
 }
 
+async function workbenchTabs() {
+  const response = await fetch("http://127.0.0.1:"+port+"/json/list",{signal:AbortSignal.timeout(5000)});
+  if (!response.ok) throw new Error("无法读取工作台标签页。");
+  const expected = pathToFileURL(join(directory,"index.html"));
+  return (await response.json()).filter((tab)=>{
+    if (tab.type!=="page") return false;
+    try {
+      const url = new URL(tab.url);
+      const isFile = url.protocol===expected.protocol && url.pathname===expected.pathname;
+      const isServed = url.protocol==="http:" && url.hostname==="127.0.0.1" && Number(url.port)===helperPort;
+      return (isFile || isServed) && url.searchParams.get("agentCollab")==="1" &&
+        (!process.env.SC2_WORKBENCH_TAB_ID || tab.id===process.env.SC2_WORKBENCH_TAB_ID);
+    } catch { return false; }
+  });
+}
+
+async function closeTabs(tabs) {
+  for (const tab of tabs) {
+    await fetch("http://127.0.0.1:"+port+"/json/close/"+encodeURIComponent(tab.id),{signal:AbortSignal.timeout(2000)}).catch(()=>{});
+  }
+}
+
+async function closeDuplicateTabs() {
+  try {
+    const tabs=await workbenchTabs();
+    if (tabs.length>1) await closeTabs(tabs.slice(1));
+  } catch { /* Browser may not be running yet. */ }
+}
+
+async function stop() {
+  try {
+    const tabs=await workbenchTabs();
+    await closeTabs(tabs);
+    console.log(tabs.length ? "已关闭 Agent 协作工作台。" : "Agent 协作工作台未运行。");
+  } catch {
+    console.log("Agent 协作工作台未运行。");
+  }
+}
+
+async function restart() {
+  await stop();
+  await new Promise((done)=>setTimeout(done,800));
+  return launch();
+}
+
 async function launch() {
+  await ensureHelper();
+  await closeDuplicateTabs();
+  try {
+    const api=await connect();
+    await api.send("Page.bringToFront").catch(()=>{});
+    api.close();
+    console.log("已复用当前 Agent 协作工作台。");
+    return;
+  } catch { /* No reusable tab; start a new one. */ }
   const candidates = [process.env.SC2_WORKBENCH_CHROME,
     ...[process.env["ProgramFiles(x86)"],process.env.ProgramFiles,process.env.LOCALAPPDATA].filter(Boolean)
       .flatMap((base)=>[join(base,"Microsoft","Edge","Application","msedge.exe"),join(base,"Google","Chrome","Application","chrome.exe")])
@@ -65,19 +119,10 @@ async function launch() {
 }
 
 async function connect() {
-  const response = await fetch("http://127.0.0.1:"+port+"/json/list",{signal:AbortSignal.timeout(5000)});
-  if (!response.ok) throw new Error("无法读取工作台标签页。");
-  const expected = pathToFileURL(join(directory,"index.html"));
-  const tabs = (await response.json()).filter((tab)=>{
-    if (tab.type!=="page") return false;
-    const url = new URL(tab.url);
-    const isFile = url.protocol===expected.protocol && url.pathname===expected.pathname;
-    const isServed = url.protocol==="http:" && url.hostname==="127.0.0.1" && Number(url.port)===helperPort;
-    return (isFile || isServed) && url.searchParams.get("agentCollab")==="1" &&
-      (!process.env.SC2_WORKBENCH_TAB_ID || tab.id===process.env.SC2_WORKBENCH_TAB_ID);
-  });
-  if (tabs.length!==1) throw new Error("请只打开一个此目录的 Agent 协作标签页。");
-  const endpoint = new URL(tabs[0].webSocketDebuggerUrl);
+  const tabs=await workbenchTabs();
+  if (!tabs.length) throw new Error("没有找到 Agent 协作标签页。请先运行 agent.mjs start。");
+  const tab=tabs[0];
+  const endpoint = new URL(tab.webSocketDebuggerUrl);
   if (endpoint.protocol!=="ws:" || !["127.0.0.1","localhost"].includes(endpoint.hostname) || Number(endpoint.port)!==port) {
     throw new Error("工作台的本机调试地址不匹配。");
   }
@@ -180,10 +225,12 @@ function verifyArchive(id,path,target,mode="") {
 async function run() {
   const [command,...args] = process.argv.slice(2);
   if (command==="start" && !args.length) return launch();
+  if (command==="stop" && !args.length) return stop();
+  if (command==="restart" && !args.length) return restart();
   const arity = {get:[0],status:[0],open:[1],edit:[1],review:[1],export:[2],publish:[2,3],claim:[2],report:[2],
     "map-refresh":[0],"stage-assets":[2],"asset-find":[0,1],"asset-preview":[2],"asset-tag":[1]};
   if (!Object.hasOwn(arity,command) || !arity[command].includes(args.length)) {
-    throw new Error("用法：agent.mjs start | get | status | open 项目.json | edit 编辑.json | review 定稿.json | export 定稿ID 回导.zip | publish 定稿ID 回导.zip [接入配置.json] | claim 定稿ID 回导.zip | report 定稿ID 结果.json | map-refresh | stage-assets 定稿ID 回导.zip | asset-find [筛选.json] | asset-preview 素材.json 预览.png | asset-tag 标注.json");
+    throw new Error("用法：agent.mjs start | stop | restart | get | status | open 项目.json | edit 编辑.json | review 定稿.json | export 定稿ID 回导.zip | publish 定稿ID 回导.zip [接入配置.json] | claim 定稿ID 回导.zip | report 定稿ID 结果.json | map-refresh | stage-assets 定稿ID 回导.zip | asset-find [筛选.json] | asset-preview 素材.json 预览.png | asset-tag 标注.json");
   }
   const api = await connect();
   try {

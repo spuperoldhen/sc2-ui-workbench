@@ -63,6 +63,8 @@ class LocalStore:
             "preferFavorites": True,
             "projectFlags": {},
             "assetFolders": {"materials": "", "icons": ""},
+            "returnMapPath": "",
+            "returnMapBindings": {},
         }
 
     def _load_settings(self):
@@ -82,6 +84,10 @@ class LocalStore:
             result["projectFlags"] = {}
         if not isinstance(result.get("assetFolders"), dict):
             result["assetFolders"] = {"materials": "", "icons": ""}
+        if not isinstance(result.get("returnMapPath"), str):
+            result["returnMapPath"] = ""
+        if not isinstance(result.get("returnMapBindings"), dict):
+            result["returnMapBindings"] = {}
         result["preferFavorites"] = result.get("preferFavorites") is not False
         return result
 
@@ -102,7 +108,7 @@ class LocalStore:
     def update_settings(self, patch):
         if not isinstance(patch, dict):
             raise StoreError("设置格式无效。")
-        allowed = {"annotations", "favorites", "preferFavorites", "projectFlags", "assetFolders"}
+        allowed = {"annotations", "favorites", "preferFavorites", "projectFlags", "assetFolders", "returnMapPath", "returnMapBinding"}
         if set(patch) - allowed:
             raise StoreError("设置包含未知字段。")
         with self.lock:
@@ -138,6 +144,36 @@ class LocalStore:
                     if not resolved.is_dir():
                         raise StoreError("素材目录不存在。")
                     self._settings["assetFolders"][key] = str(resolved)
+            if "returnMapPath" in patch:
+                value = patch["returnMapPath"]
+                if not isinstance(value, str) or len(value) > 2048:
+                    raise StoreError("回导地图路径格式无效。")
+                if value:
+                    resolved = Path(value).expanduser().resolve(strict=True)
+                    if not resolved.is_dir():
+                        raise StoreError("回导地图目录不存在。")
+                    value = str(resolved)
+                self._settings["returnMapPath"] = value
+            if "returnMapBinding" in patch:
+                row = patch["returnMapBinding"]
+                if (not isinstance(row, dict) or set(row) != {"projectKey", "path"} or
+                        not isinstance(row["projectKey"], str) or not 1 <= len(row["projectKey"]) <= 512 or
+                        not isinstance(row["path"], str) or len(row["path"]) > 2048):
+                    raise StoreError("项目地图绑定格式无效。")
+                value = row["path"]
+                if value:
+                    resolved = Path(value).expanduser().resolve(strict=True)
+                    if not resolved.is_dir():
+                        raise StoreError("回导地图目录不存在。")
+                    value = str(resolved)
+                bindings = dict(self._settings.get("returnMapBindings") or {})
+                if len(bindings) > 500 and row["projectKey"] not in bindings:
+                    raise StoreError("项目地图绑定超过 500 项。")
+                if value:
+                    bindings[row["projectKey"]] = value
+                else:
+                    bindings.pop(row["projectKey"], None)
+                self._settings["returnMapBindings"] = bindings
             self._save_settings()
             return self.settings()
 

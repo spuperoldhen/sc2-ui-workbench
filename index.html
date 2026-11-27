@@ -2310,7 +2310,7 @@ const styleExamples = {
   "":"映射到游戏默认样式", ModCenterSize16:"战役样式示例 · 居中 16"
 };
 const STORE_KEY = "sc2-dialog-workbench-v1";
-const workbenchVersion = "1.4.3";
+const workbenchVersion = "1.4.4";
 let agentSession;
 const localStoreToken = document.querySelector('meta[name="sc2-preview-bridge"]')?.content || "";
 const localStore = {available:false, data:null, error:"", promise:null};
@@ -12765,7 +12765,7 @@ function installAssetFolders() {
     };
   }
 }
-async function restoreAssetFolders() {
+async function restoreAssetFolders({deferMaterials=false}={}) {
   const status = $("assetFolderStorageStatus");
   const local=await initLocalStore();
   if (local) {
@@ -12774,10 +12774,12 @@ async function restoreAssetFolders() {
       "正在从工作台本地数据恢复素材目录…" : "素材目录会保存在工作台 data 目录。";
     await Promise.all(Object.entries(folders).map(async ([source,path])=>{
       if (!path || !Object.hasOwn(assetFolders,source)) return;
+      if (deferMaterials && source==="materials") return;
       try { await loadLocalAssetFolder(assetFolders[source],source); }
       catch (error) { assetFolders[source].message=error.message || "无法读取素材目录。"; }
     }));
-    if (Object.values(folders).some(Boolean)) status.textContent="素材目录已从工作台本地数据恢复。";
+    if (Object.values(folders).some(Boolean)) status.textContent=deferMaterials && folders.materials ?
+      "素材目录已记住，首次检索时载入。" : "素材目录已从工作台本地数据恢复。";
     return;
   }
   if (typeof window.showDirectoryPicker !== "function") {
@@ -12798,6 +12800,19 @@ async function restoreAssetFolders() {
     await restoreAssetFolder(state,"restore");
   }));
 }
+let collaborationAssetsLoad=null;
+async function ensureCollaborationAssets() {
+  if (!localStore.available) return;
+  await initLocalStore().catch(()=>false);
+  const state=assetFolders.materials;
+  if (state.grant || state.busy || !localStore.data?.assetFolders?.materials) return;
+  collaborationAssetsLoad ||= (async()=>{
+    try { await loadLocalAssetFolder(state); }
+    finally { collaborationAssetsLoad=null; }
+  })();
+  await collaborationAssetsLoad;
+}
+
 function readManifest(value) {
   const candidates = Array.isArray(value) ? value : value?.assets || value?.textures || value?.files;
   if (!Array.isArray(candidates)) throw new Error("清单应为数组，或包含 assets、textures 或 files 数组。");
@@ -13312,6 +13327,7 @@ function collaborationAssetAccess(entry,grants) {
 }
 
 async function findCollaborationAssets(options={}) {
+  await ensureCollaborationAssets();
   await restoreAssetAnnotations();
   const grants=await authorizedAssetGrants();
   const query=typeof options.query==="string" ? options.query.trim().toLowerCase().replace(/[\\/]+/g,"\\") : "";
@@ -13354,6 +13370,7 @@ async function annotateCollaborationAssets(request) {
   if (!Array.isArray(request?.items) || !request.items.length || request.items.length>200) {
     throw new Error("一次提交需要 1–200 条贴图标注。");
   }
+  await ensureCollaborationAssets();
   const grants=await authorizedAssetGrants();
   const available=new Map();
   for (const entry of catalog.values()) {
@@ -13378,6 +13395,7 @@ async function annotateCollaborationAssets(request) {
 }
 
 async function previewCollaborationAsset(id) {
+  await ensureCollaborationAssets();
   const grants=await authorizedAssetGrants();
   const entry=[...catalog.values()].find((item)=>assetAnnotationId(item)===id);
   const access=entry && collaborationAssetAccess(entry,grants);
@@ -18679,6 +18697,18 @@ function clearAgentReview() {
 function selectedReturnFolder() {
   return agentSession.folder || validConnectedFolder();
 }
+function returnMapProjectKey() {
+  if (projectFile?.directory && projectFile?.name) return "file:"+draftProjectKey(projectFile);
+  if (workspace.projectName) return "name:"+workspace.projectName;
+  const prefix=workspace.dialogs[0]?.layout.prefix;
+  return prefix ? "prefix:"+prefix : "";
+}
+async function rememberReturnMap(path) {
+  if (!path || !localStore.available) return;
+  const projectKey=returnMapProjectKey();
+  await saveLocalSettings({returnMapPath:path,
+    ...(projectKey ? {returnMapBinding:{projectKey,path}} : {})});
+}
 function isReviewFolder(review,folder=selectedReturnFolder()) {
   return Boolean(folder && (folder===review.folder || (folder.authorization && folder.authorization===review.folder.authorization)));
 }
@@ -18718,6 +18748,7 @@ async function setCollaborationMap(load,expected=workspace) {
     if (!folder.index || !folder.script) throw new Error("目录需要包含 ComponentList.SC2Components 和 MapScript.galaxy。");
     const review=agentSession.review;
     agentSession.folder=folder;
+    if (folder.mapPath) await rememberReturnMap(folder.mapPath);
     if (review && isReviewFolder(review,folder)) {
       review.folder=folder;
       if (review.status==="exported") {
@@ -18736,8 +18767,26 @@ async function refreshTargetFolder({automatic=false}={}) {
   const folder=selectedReturnFolder();
   if (folder?.mapId) return setCollaborationMap(()=>scanHelperMap({mapId:folder.mapId}));
   if (folder?.handle) return setCollaborationMap(()=>scanHandleMap(folder.handle,folder.authorization));
+  if (automatic && localStore.data?.mapScan) {
+    const restored=await restoreCollaborationTarget();
+    if (restored) return restored;
+  }
   if (automatic) return folder;
   throw new Error("此浏览器使用一次性目录读取。请使用「选择回导地图」重新读取。");
+}
+
+async function restoreCollaborationTarget() {
+  if (!agentSession || agentSession.folder || agentSession.mapLoading || !localStore.data?.mapScan) return null;
+  try {
+    const folder=await setCollaborationMap(()=>scanHelperMap({restore:true,projectKey:returnMapProjectKey()}));
+    if (folder) {
+      agentSession.lastEdit="已恢复上次回导地图";
+      refreshAgentSession();
+    }
+    return folder;
+  } catch {
+    return null;
+  }
 }
 
 function collaborationVisualKey(project=workspace) {
@@ -19066,6 +19115,7 @@ async function openCollaborationProject(data) {
   agentSession.identity=draftProjectKey(projectFile);
   agentSession.paused=false;
   refreshAgentSession();
+  setTimeout(()=>restoreCollaborationTarget().catch(()=>{}),0);
   return {state:collaborationState(false),project:workspace.projectName || model.root.name,activeDialog:active};
 }
 
@@ -19153,6 +19203,9 @@ function installAgentCollaboration() {
     }
   };
   refreshAgentSession();
+  const restoreTarget=()=>{ if (!agentSession.folder && !agentSession.paused) restoreCollaborationTarget().catch(()=>{}); };
+  setTimeout(restoreTarget,1000);
+  setTimeout(restoreTarget,3000);
   return Object.freeze({getState:collaborationState,edit:applyCollaborationEdits,requestReview:requestCollaborationReview,
     refreshTargetFolder:async()=>{await refreshTargetFolder();return collaborationState(false);},
     exportApproved:exportCollaborationReview,claimApply:claimCollaborationApplication,reportApply:finishCollaborationApplication,
@@ -19174,7 +19227,7 @@ if (new URLSearchParams(location.search).get("localAgent")==="1") {
   });
 } else if (new URLSearchParams(location.search).get("agentCollab")==="1") {
   window.SC2WorkbenchCollaboration = installAgentCollaboration();
-  restoreAssetFolders();
+  restoreAssetFolders({deferMaterials:true});
 } else restoreAssetFolders();
 </script>
 </body>
