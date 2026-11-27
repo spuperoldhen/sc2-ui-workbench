@@ -23,6 +23,59 @@ py -3 "$skill\scripts\stage.py" --bundle '.\run-01\sc2-ui-return.zip' --map-copy
 3. 按清单 `integration.initialization` 读取 `初始化动作.txt`，把内容贴入对应触发器的自定义脚本动作。新测试地图可创建专用 UI 初始化触发器。旧地图在原 GUI 创建阶段更新专用动作，保留它周围的事件、条件和游戏逻辑，并检查该阶段只创建一次该批 UI。按原运行时流程处理必须在玩家组初始化之后执行的调用。使用系统剪贴板粘贴多行，并读回核对首尾各行；只在确认文本编辑区有焦点时粘贴。
 4. 用导入模块核对自定义贴图和字体的内部路径。清单中标记 `gameUI` 的布局检查游戏 UI 注册和加载顺序。游戏原生资源检查地图依赖，自定义资源检查原文件；缩略图不能作为地图贴图。通过编辑器保存测试副本，并检查可重新读出专用节点和初始化动作。
 
+## 自动注入 GUI 变量与结构体（`sync_gui_triggers.py`）
+
+当需要批量把脚本变量、多维数组或结构体直接暴露到银河编辑器触发器 GUI（F6 全局变量/记录列表）时，可使用 `scripts/sync_gui_triggers.py` 代替手工逐个点击创建。**执行 `--apply` 前必须先在银河编辑器中关闭目标地图**，写入后再从磁盘重新打开地图，避免编辑器内存旧状态覆盖 `Triggers` 与 `MapScript.galaxy`。
+
+### 1. 从回导清单自动同步（支持 `structMember`）
+
+```powershell
+# 先只读预检（不改地图文件）
+py -3 "$skill\scripts\sync_gui_triggers.py" --map-copy 'D:\test\UI-Test.SC2Components' --manifest '.\run-01\applied\ui_manifest.json' --category 'SC2WorkbenchUI'
+
+# 确认计划无误且编辑器已关闭该地图后写入（自动在地图目录外备份）
+py -3 "$skill\scripts\sync_gui_triggers.py" --map-copy 'D:\test\UI-Test.SC2Components' --manifest '.\run-01\applied\ui_manifest.json' --category 'SC2WorkbenchUI' --apply
+```
+
+- 自动识别 `maximumIndexes` / `minimumArrayLengths`，同名变量存在时自动校验类型并在维数一致时按最大值拓宽 `ArraySize`。
+- 当条目包含 `storage: "structMember"` 与 `segmentDimensions` 时，自动沿点分隔路径（如 `UI.cards` 或 `Players.hud.slot`）创建或复用顶层 `struct` 全局变量、GUI `Structure`（记录）及各级成员变量。
+
+### 2. 通过独立 JSON 规范创建 GUI 全局变量与结构体
+
+适用于手动向任意组件地图暴露脚本变量或构建新的 GUI 记录结构（`--spec vars.json`）：
+
+```json
+{
+  "category": { "identifier": "MS_Exposed", "displayName": "MS 对外单位与位置" },
+  "structures": [
+    {
+      "identifier": "MS_PlayerState",
+      "displayName": "玩家状态",
+      "category": "MS 对外单位与位置",
+      "members": [
+        { "identifier": "hookUnit", "displayName": "抓钩单位", "type": "unit" },
+        { "identifier": "buttons", "displayName": "技能按钮", "type": "control", "dimensions": [5] },
+        { "identifier": "count", "displayName": "计数", "type": "int", "defaultValue": "1" }
+      ]
+    }
+  ],
+  "variables": [
+    { "identifier": "MS_HookPoint", "displayName": "玩家抓钩位置", "type": "point", "dimensions": [6], "category": "MS 对外单位与位置" },
+    { "identifier": "MS_Players", "displayName": "玩家状态数组", "type": "struct", "struct": "MS_PlayerState", "dimensions": [6], "category": "MS 对外单位与位置" }
+  ]
+}
+```
+
+- **支持的 GUI 类型**：`int`/`整数`、`fixed`/`实数`、`bool`/`布尔值`、`string`/`字符串`、`text`/`文本`、`dialog`/`对话框`、`control`/`dialogcontrol`/`对话框项`、`playergroup`/`玩家组`、`unit`/`单位`、`unitgroup`/`单位组`、`actor`/`演算体`、`point`/`点`、`region`/`区域`、`timer`/`计时器`、`sound`/`声音`、`color`/`颜色`、`bank`/`银行`、`trigger`/`触发器`、`gamelink`/`游戏链接`（配合 `"gameType"`）、`struct`/`record`/`结构体`/`记录`（配合 `"struct"`）。
+- **数组维度写法**：`"dimensions": [6]`（或 `"maximumIndexes": [6]`）直接对应 `Triggers` 中的 `<ArraySize Dim="0" Value="6"/>`（索引 `0–6`，即编译后 `type[7]`）；如按元素个数填写请改用 `"arrayLengths": [7]`。
+
+### 3. 写入规则与踩坑约束
+
+- **GUI 分类显示名**：`Triggers` 中的 `<Element Type="Category">` 不靠 `<Identifier>` 命名，而是通过 `TriggerStrings.txt` 的 `Category/Name/<ID>=...` 显示；脚本已按此同步并保持幂等复用。
+- **结构体 XML 与 Galaxy 命名**：GUI 结构体使用 `<Element Type="Structure" Id="...">`（显示名写 `Structure/Name/<ID>`），其成员引用 `<Variable Type="Variable" Id="..."/>` 指向普通 `Variable` 定义（显示名写 `Variable/Name/<ID>`）；编译后结构体名为 `gs_<StructId>`、成员为 `lv_<MemberId>`、`struct` 型全局变量使用 `<Type Value="struct"/><TypeElement Type="Structure" Id="..."/>`（无 `<Value>` 节点）。
+- **自定义脚本 `include` 顺序**：在 `MapScript.galaxy` 中，`include "..."` 必须位于 `// Structures`（`gs_*`）与 `// Global Variables`（`gv_*`）声明之后；否则被 include 的脚本会因看不到 `gv_*` 而报编译错误。
+- **保留编码格式**：写入时自动保留 `Triggers`（无 BOM UTF-8）、`TriggerStrings.txt`（UTF-8 BOM）与 `MapScript.galaxy` 原有的 BOM/CRLF 格式，并在变更前在地图外创建备份目录。
+
 ## 结构体成员
 
 当 `variables` 条目标记为 `storage: "structMember"`，请在当前地图中核对原全局结构体及其成员声明。用 `segmentDimensions` 将数组长度对应到点分隔路径的每一层。按清单 `binding.reference` 访问完整成员路径。

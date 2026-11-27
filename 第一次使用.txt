@@ -13,4 +13,5 @@ SC2 UI 工作台 · 第一次使用
 - 测试副本路径保存在 %LOCALAPPDATA%\SC2WorkbenchPreview\map.txt；网页切换后会自动更新。不要手工改这个文件来绕过页面上的目标确认。
 - 写入冲突会在页面列出实际冲突文件和 stage-report.json 路径；不会覆盖未确认的原文件。
 - 无窗口启动器出错时，日志写在 %LOCALAPPDATA%\SC2WorkbenchPreview\launcher.log。
+- 需要让本地 Agent 与你共用画布、批量修改并走定稿回导时，阅读 `Agent协作说明.md`，在工作台目录运行 `node agent.mjs start`；普通实机预览仍双击启动器即可。
 - 预览只负责显示布局和贴图，不接入触发器、事件、动作函数或 GUI 变量；响应逻辑由你或本地 agent 另外接入。

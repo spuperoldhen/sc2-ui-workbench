@@ -1,5 +1,17 @@
 # SC2 UI 工作台
 
+## v1.1.0 · 本地 Agent 协作
+
+本版加入本地 Agent 协作标签页：在解压目录运行 `node agent.mjs start`，工作台会打开独立的协作浏览器配置，Agent 通过本机调试端口读写同一张画布。Agent 可以批量添加或修改控件、读取当前 `session` / `revision` / 选区、接收用户在画布上留下的「指出问题」，并在用户确认定稿后生成增量回导 ZIP。网页内的「暂停 Agent」「查看定稿」和确认按钮仍是最终审批入口。
+
+配套工具：
+
+- `agent.mjs`：启动协作标签页，提供 `get`、`status`、`edit`、`review`、`publish`、`claim`、`report` 命令。
+- `apply_ui_revision.py`：核对定稿、目标地图、`MapScript.galaxy` 和文件哈希后，把增量回导包写入 `-UI-Test` 副本，失败回滚并保留备份。
+- `Agent协作说明.md`：面向使用者和本地 Agent 的完整步骤、命令和编辑 JSON 示例。
+
+协作模式只在 `index.html?agentCollab=1` 时显示协作栏；普通页面仍保留目标切换、中文名称、GUI 变量回导和实机预览。Agent 模式不会绕过目标确认，也不会自动修改正式地图；需要触发器接入时返回 `agentIntegration`，由本地 Agent 继续处理。
+
 ## v1.0.8 · 中文名称与地图变量回导
 
 本版修复地图中文名称和变量编辑：读取组件地图的 `Triggers` 与 `TriggerStrings.txt`，对话框、控件和全局变量优先显示触发器里的中文名称；只有脚本名时才从 `gv_` 后的十六进制 UTF-8 字节解码，无法确认的 `Imported_N` 仍保留原描述。左侧「全局变量」默认显示所有已识别变量，变量编辑器的「类型」改为下拉选择（对话框、对话框项、整数、布尔值、实数等），已有地图变量保留原存储类型。
@@ -37,6 +49,13 @@
 
 5. 需要把变量真正写进地图供 F6 触发器和后续玩法使用时，打开「项目 → 回导地图」。默认目标为当前已连接的原地图；也可点「选择目标地图」重新选择组件目录。选择「回导界面和变量」或「仅同步全局变量」，点「生成地图副本」并选择保存目录。生成的是新副本，不修改原图；已有全局变量按触发器元素 ID 复用，启用 GUI 绑定的控件缺少变量时才自动新建。复杂旧地图无法唯一确认原 UI 创建触发器时，会提示改用「仅同步全局变量」，不会吞掉原触发器动作。生成后用银河编辑器打开副本里的 `ComponentList.SC2Components` 并保存一次，按 F6 查看变量。
 
+### 本地 Agent 协作
+
+1. 在解压目录打开 PowerShell，运行 `node .\agent.mjs start`。需要 Node.js 22 或更新版本，并安装 Edge 或 Chrome；命令会打开自己的协作浏览器配置。
+2. 在协作标签页打开项目 JSON 或导入组件地图，点击「恢复 Agent」。把解压目录交给本地 Agent，让它按 [Agent协作说明.md](Agent协作说明.md) 的 `get` / `edit` / `review` 流程操作。
+3. 你可以在同一画布拖动、改属性或撤销；选中控件后「指出问题」会给 Agent 留言。Agent 提交定稿后，核对目标路径并「确认定稿并交给 Agent 回导」。
+4. `publish` 会生成增量回导 ZIP；`claim` / `apply_ui_revision.py` 只对 `-UI-Test` 副本写入，写入前核对目标、脚本和文件哈希，失败回滚并保留备份。需要新建触发器或变量时，结果交给本地 Agent 的 `agentIntegration` 接入。
+
 ### 素材和写入状态
 
 - 预览包生成自包含的 `Scripts/SC2WorkbenchPreview.galaxy`，负责创建和显示对话框、套用预览值。响应脚本、触发器、事件、动作函数及 GUI 变量由地图作者或本地 agent 另外接入。
@@ -62,6 +81,17 @@
 4. **导出**：从「导出 Galaxy」生成脚本、初始化动作、GUI 变量清单和地图回导 ZIP。
 
 > 也可以把 `index.html` 放到任意静态站点。通过 `file://` 打开时，项目目录连接可能受限；需要本地目录管理时，建议在所在目录运行 `python -m http.server 8765 --bind 127.0.0.1`，再访问 `http://localhost:8765/`。
+
+## v1.1.0 新增
+
+| 功能 | 说明 |
+| --- | --- |
+| Agent 协作标签页 | `node agent.mjs start` 打开独立浏览器配置，Agent 与用户共享同一张画布 |
+| 会话与版本保护 | 每次提交核对 `session` / `revision`；用户编辑、暂停或进入定稿后旧请求失效 |
+| 定稿审批 | 用户在画布内查看定稿摘要并确认，Agent 才能导出回导包 |
+| 增量回导 | `apply_ui_revision.py` 核对目标、脚本和文件哈希，写入 `-UI-Test`，失败回滚并备份 |
+| 问题留言 | 选中控件后「指出问题」，留言随控件编号交给 Agent |
+| 全局变量命名与行为编辑 | 保留新版工作台的全局暴露、自动标识符、行为规则和结构体变量能力 |
 
 ## v1.0.8 新增
 
@@ -291,6 +321,8 @@ Windows 本地 Agent 可载入 [`skills/sc2-galaxy-bridge`](skills/sc2-galaxy-br
 ## 文档
 
 - [更新日志](RELEASE_NOTES.md)
+- [全局变量命名说明](使用说明.md)
+- [Agent 协作说明](Agent协作说明.md)
 - [Windows 本地 Agent 操作手册](skills/sc2-galaxy-bridge/references/windows-editor.md)
 - [提交问题](https://github.com/spuperoldhen/sc2-ui-workbench/issues)
 - [MIT License](LICENSE)

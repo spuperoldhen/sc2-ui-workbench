@@ -62,7 +62,7 @@ MAP_CONFIG = STATE / "map.txt"
 OFFLINE = b'<meta name="sc2-preview-bridge" content="offline">'
 PREVIEW_INCLUDE = 'include "Scripts/SC2WorkbenchPreview"'
 PREVIEW_CALL = "SC2WorkbenchPreview_Init();"
-VERSION = "2026-11-24.2"
+VERSION = "2026-11-27.1"
 
 
 def map_script(root):
@@ -466,7 +466,7 @@ class PreviewHandler(BaseHTTPRequestHandler):
                 pass
             finally:
                 self.session.client_close()
-        elif self.path == "/":
+        elif urlparse(self.path).path == "/":
             try:
                 html = self.session.page_html()
             except (OSError, ValueError) as error:
