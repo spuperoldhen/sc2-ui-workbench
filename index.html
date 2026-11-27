@@ -2258,7 +2258,7 @@ const styleExamples = {
   "":"映射到游戏默认样式", ModCenterSize16:"战役样式示例 · 居中 16"
 };
 const STORE_KEY = "sc2-dialog-workbench-v1";
-const workbenchVersion = "1.2.0";
+const workbenchVersion = "1.3.0";
 let agentSession;
 const autoSelectDialogsKey = STORE_KEY+"-auto-select-dialogs";
 const tourKey = STORE_KEY+"-quick-start";
@@ -6139,7 +6139,7 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
 function mapReturnInstructions(plan) {
   if (plan.manifest?.revision) return revisionPackageInstructions(plan)+behaviorArchiveNote(plan.manifest)+globalExposureNote(plan.manifest);
   if (plan.previewScope) return [
-    "SC2 UI 工作台 v1.2.0 · 实机预览",
+    "SC2 UI 工作台 v1.3.0 · 实机预览",
     "",
     (plan.previewScope.sceneOverview ? "合成画布已开启，预览全部对话框。" : "合成画布已关闭，预览当前对话框。"),
     "预览范围见 ui_manifest.json 的 preview，按 files 中的路径将「地图文件」部署到专用测试副本。",
@@ -18128,6 +18128,28 @@ function finishCollaborationApplication(id,{ok,message}={}) {
   return collaborationState(false);
 }
 
+function openCollaborationProject(data) {
+  if (agentSession?.paused) throw new Error("用户已暂停 Agent。");
+  if (document.querySelector("dialog[open]")) throw new Error("用户正在操作工作台。请关闭当前对话框后重试。");
+  const source=data?.project || data;
+  const project=readWorkspace(source);
+  const wanted=Number(data?.activeDialog ?? source?.activeDialog ?? 0);
+  const active=project.dialogs.find(({id})=>id===wanted)?.id || project.dialogs[0].id;
+  replaceProject(project,active);
+  saveDraft();
+  agentSession.revision++;
+  agentSession.review=null;
+  agentSession.folder=null;
+  agentSession.mapLoading=false;
+  agentSession.feedback=[];
+  agentSession.lastEdit="Agent 已打开项目";
+  agentSession.key=projectContentKey();
+  agentSession.identity=draftProjectKey(projectFile);
+  agentSession.paused=false;
+  refreshAgentSession();
+  return {state:collaborationState(false),project:workspace.projectName || model.root.name,activeDialog:active};
+}
+
 function installAgentCollaboration() {
   agentSession = {id:createShelfId(),revision:1,key:projectContentKey(),identity:draftProjectKey(projectFile),
     paused:false,review:null,lastEdit:"",folder:null,mapLoading:false,mapRequest:0,feedback:[]};
@@ -18212,7 +18234,8 @@ function installAgentCollaboration() {
   refreshAgentSession();
   return Object.freeze({getState:collaborationState,edit:applyCollaborationEdits,requestReview:requestCollaborationReview,
     exportApproved:exportCollaborationReview,claimApply:claimCollaborationApplication,reportApply:finishCollaborationApplication,
-    findAssets:findCollaborationAssets,previewAsset:previewCollaborationAsset,annotateAssets:annotateCollaborationAssets});
+    openProject:openCollaborationProject,findAssets:findCollaborationAssets,previewAsset:previewCollaborationAsset,
+    annotateAssets:annotateCollaborationAssets});
 }
 
 setupVoteButtonTextures();

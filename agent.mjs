@@ -149,15 +149,16 @@ function verifyArchive(id,path,target,apply=false) {
 async function run() {
   const [command,...args] = process.argv.slice(2);
   if (command==="start" && !args.length) return launch();
-  const arity = {get:[0],status:[0],edit:[1],review:[1],export:[2],publish:[2,3],claim:[2],report:[2],
+  const arity = {get:[0],status:[0],open:[1],edit:[1],review:[1],export:[2],publish:[2,3],claim:[2],report:[2],
     "asset-find":[0,1],"asset-preview":[2],"asset-tag":[1]};
   if (!Object.hasOwn(arity,command) || !arity[command].includes(args.length)) {
-    throw new Error("用法：agent.mjs start | get | status | edit 编辑.json | review 定稿.json | export 定稿ID 回导.zip | publish 定稿ID 回导.zip [接入配置.json] | claim 定稿ID 回导.zip | report 定稿ID 结果.json | asset-find [筛选.json] | asset-preview 素材.json 预览.png | asset-tag 标注.json");
+    throw new Error("用法：agent.mjs start | get | status | open 项目.json | edit 编辑.json | review 定稿.json | export 定稿ID 回导.zip | publish 定稿ID 回导.zip [接入配置.json] | claim 定稿ID 回导.zip | report 定稿ID 结果.json | asset-find [筛选.json] | asset-preview 素材.json 预览.png | asset-tag 标注.json");
   }
   const api = await connect();
   try {
     if (command==="get") return print(await api.evaluate("getState"));
     if (command==="status") return print(await api.evaluate("getState",[false]));
+    if (command==="open") return print(await api.evaluate("openProject",[await json(args[0])]));
     if (command==="asset-find") return print(await api.evaluate("findAssets",[args[0] ? await json(args[0]) : {}]));
     if (command==="asset-tag") return print(await api.evaluate("annotateAssets",[await json(args[0])]));
     if (command==="asset-preview") {

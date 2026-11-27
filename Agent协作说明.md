@@ -2,8 +2,10 @@
 
 ## 和 Agent 一起编辑
 
-1. 解压到本地目录。在这个目录打开 PowerShell，运行 `node .\agent.mjs start`。使用 Node.js 22 或更新版，并安装 Edge 或 Chrome。该命令打开一张可见的协作标签页。
-2. 在标签页中打开原项目 JSON 或导入组件地图。打开或切换项目后，点击「恢复 Agent」。把解压目录交给本地 Agent，告诉它要做的布局。
+用户不需要打开 PowerShell。把解压目录交给本地 Agent，在对话里说「打开工作台协作」或直接描述要改的布局即可。Agent 会在本机运行命令、打开协作页并读取项目。Agent 应优先读取 `skills/sc2-workbench-collab/SKILL.md` 的工作流。
+
+1. Agent 启动协作页并打开项目。使用 Node.js 22 或更新版，并安装 Edge 或 Chrome。协作页是一张可见的标签页。
+2. 打开或切换项目后，点击「恢复 Agent」（如果显示「暂停 Agent」说明已经启用）。用户只需要在浏览器里完成项目/地图目录选择和最终定稿确认。
 3. Agent 分批添加或修改控件。你会在同一画布上看到改动，可以照常拖动、改属性或撤销。点击「暂停 Agent」可暂时自己编辑。选中控件后点击「指出问题」，留言会连同控件编号交给 Agent。
 4. 回导前在协作栏点击「选择回导地图」，选取这次要写入的组件地图目录。Agent 完成后会提交定稿摘要。核对画布和目标路径后，打开「查看定稿」，点击「确认定稿并交给 Agent 回导」。
 
@@ -17,6 +19,7 @@
 |---|---|
 | `node agent.mjs get` | 返回当前项目、`session`、`revision`、选区、回导地图和留言 |
 | `node agent.mjs status` | 读取同样的状态，省略完整项目 JSON |
+| `node agent.mjs open 项目.json` | Agent 直接打开项目 JSON，并开始新的协作会话版本 |
 | `node agent.mjs edit edit.json` | 验证一批改动，写入画布，形成一次可撤销操作 |
 | `node agent.mjs review review.json` | 请求用户查看定稿，返回 `review.id` |
 | `node agent.mjs publish 定稿ID 回导.zip [integration.json]` | 等待用户确认，导出回导包，按接入类型继续 |
