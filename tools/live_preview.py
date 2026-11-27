@@ -6,6 +6,7 @@ from hashlib import sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib
 import json
+import mimetypes
 import os
 from pathlib import Path
 import re
@@ -36,6 +37,7 @@ if sys.stdout is None or sys.stderr is None:
         pass
 
 from launch_test_game import editor_window, request_test_document
+from local_store import LocalStore, StoreError
 
 def resource_root():
     if getattr(sys, "frozen", False):
@@ -47,6 +49,10 @@ def resource_root():
 
 
 WORKBENCH = resource_root()
+def data_root():
+    base = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else WORKBENCH
+    return base / "data"
+
 SCRIPTS = WORKBENCH / "skills" / "sc2-galaxy-bridge" / "scripts"
 if not SCRIPTS.is_dir() and getattr(sys, "frozen", False):
     SCRIPTS = Path(sys._MEIPASS) / "skills" / "sc2-galaxy-bridge" / "scripts"
@@ -62,7 +68,7 @@ MAP_CONFIG = STATE / "map.txt"
 OFFLINE = b'<meta name="sc2-preview-bridge" content="offline">'
 PREVIEW_INCLUDE = 'include "Scripts/SC2WorkbenchPreview"'
 PREVIEW_CALL = "SC2WorkbenchPreview_Init();"
-VERSION = "2026-11-27.3"
+VERSION = "2026-11-27.4"
 
 
 def map_script(root):
@@ -239,8 +245,9 @@ class PreviewError(Exception):
 
 
 class PreviewSession:
-    def __init__(self, state, replace_font_styles, launch="direct", launcher=None, initial_map=None):
+    def __init__(self, state, replace_font_styles, launch="direct", launcher=None, initial_map=None, store=None):
         self.state_root = state
+        self.store = store
         self.replace_font_styles = replace_font_styles
         self.launch = launch
         self.launcher = launcher or (default_launcher() if launch == "direct" else None)
@@ -443,9 +450,79 @@ class PreviewHandler(BaseHTTPRequestHandler):
     def local_host(self):
         return self.headers.get("Host") == f"127.0.0.1:{self.server.server_port}"
 
+    def workbench_token(self):
+        token = self.headers.get("X-SC2-Preview-Token", "")
+        if not token:
+            token = parse_qs(urlparse(self.path).query).get("token", [""])[0]
+        return bool(token) and secrets.compare_digest(
+            token.encode("utf-8"), self.session.token.encode("ascii"))
+
+    def read_json_body(self, limit=32 * 1024 * 1024):
+        size = int(self.headers.get("Content-Length", "0"))
+        if self.headers.get_content_type() != "application/json" or not 0 < size <= limit:
+            raise StoreError("请提交 JSON 请求。")
+        try:
+            value = json.loads(self.rfile.read(size).decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as error:
+            raise StoreError("JSON 请求格式无效。") from error
+        if not isinstance(value, dict):
+            raise StoreError("JSON 请求必须是对象。")
+        return value
+
+    def handle_workbench_get(self):
+        if not self.workbench_token():
+            self.json_response(403, {"message": "本地数据接口需要工作台 token。"})
+            return
+        store = self.session.store
+        path = urlparse(self.path).path
+        query = parse_qs(urlparse(self.path).query)
+        try:
+            if path == "/api/workbench/state":
+                payload = store.settings()
+                payload["projects"] = store.list_projects()
+                payload["dataRoot"] = str(store.root)
+                self.json_response(200, payload)
+            elif path == "/api/workbench/project":
+                name = query.get("name", [""])[0]
+                self.json_response(200, store.read_project(name))
+            elif path == "/api/workbench/asset-tree":
+                self.json_response(200, store.asset_tree(query.get("source", [""])[0]))
+            elif path == "/api/workbench/asset-file":
+                asset = store.asset_file(query.get("source", [""])[0], query.get("path", [""])[0])
+                payload = asset.read_bytes()
+                content_type = mimetypes.guess_type(asset.name)[0] or "application/octet-stream"
+                self.send_content(200, content_type, payload)
+            else:
+                self.json_response(404, {"message": "找不到本地数据入口。"})
+        except (StoreError, OSError, ValueError) as error:
+            self.json_response(409, {"message": str(error)})
+
+    def handle_workbench_post(self):
+        path = urlparse(self.path).path
+        try:
+            body = self.read_json_body()
+            store = self.session.store
+            if path == "/api/workbench/project":
+                result = store.save_project(body.get("name"), body.get("data"), body.get("create") is True)
+                self.json_response(200, result)
+            elif path == "/api/workbench/project-delete":
+                self.json_response(200, store.delete_project(body.get("name")))
+            elif path == "/api/workbench/project-rename":
+                self.json_response(200, store.rename_project(body.get("oldName"), body.get("newName")))
+            elif path == "/api/workbench/settings":
+                self.json_response(200, store.update_settings(body.get("settings")))
+            elif path == "/api/workbench/pick-folder":
+                self.json_response(200, store.pick_folder(body.get("source")))
+            else:
+                self.json_response(404, {"message": "找不到本地数据入口。"})
+        except (StoreError, OSError, ValueError) as error:
+            self.json_response(409, {"message": str(error)})
+
     def do_GET(self):
         if not self.local_host():
             self.json_response(403, {"message":"请通过「启动SC2 UI 工作台」提供的地址访问。"})
+        elif urlparse(self.path).path.startswith("/api/workbench/"):
+            self.handle_workbench_get()
         elif self.path.startswith("/api/preview/events"):
             token = parse_qs(urlparse(self.path).query).get("token", [""])[0]
             if not secrets.compare_digest(token.encode("utf-8"), self.session.token.encode("ascii")):
@@ -488,6 +565,9 @@ class PreviewHandler(BaseHTTPRequestHandler):
         token = self.headers.get("X-SC2-Preview-Token", "")
         if not secrets.compare_digest(token.encode("utf-8"), self.session.token.encode("ascii")):
             self.json_response(403, {"message":"请通过「启动SC2 UI 工作台」打开页面后重试。"})
+            return
+        if urlparse(self.path).path.startswith("/api/workbench/"):
+            self.handle_workbench_post()
             return
         if self.path == "/api/preview/target":
             try:
@@ -586,8 +666,9 @@ def main():
                     initial = test_map(Path(saved))
                 except (OSError, ValueError):
                     initial = None
+        store = LocalStore(data_root())
         session = PreviewSession(state, args.replace_font_styles,
-                                 args.launch, args.launcher, initial_map=initial)
+                                 args.launch, args.launcher, initial_map=initial, store=store)
         with ThreadingHTTPServer(("127.0.0.1", args.port), partial(PreviewHandler,session=session)) as server:
             url = f"http://127.0.0.1:{server.server_port}/"
             target = str(session.root) if session.root else "未选择（请在网页实机预览中设置）"

@@ -7,9 +7,35 @@ import {pathToFileURL,fileURLToPath} from "node:url";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.SC2_WORKBENCH_PORT || 9226);
+const helperPort = Number(process.env.SC2_WORKBENCH_HELPER_PORT || 8765);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("调试端口无效。");
+if (!Number.isInteger(helperPort) || helperPort < 1024 || helperPort > 65535) throw new Error("工作台端口无效。");
+const helperUrl = "http://127.0.0.1:"+helperPort+"/";
 const json = async (path)=>JSON.parse((await readFile(path,"utf8")).replace(/^\ufeff/,""));
 const print = (value)=>console.log(JSON.stringify(value,null,2));
+
+async function helperReady() {
+  try {
+    const response=await fetch(helperUrl+"api/preview/version",{signal:AbortSignal.timeout(1500)});
+    return response.ok;
+  } catch { return false; }
+}
+
+async function ensureHelper() {
+  if (await helperReady()) return helperUrl;
+  const script=join(directory,"tools","live_preview.py");
+  if (!existsSync(script)) return null;
+  const python=pythonExecutable();
+  const child=spawn(python,[script,"--port",String(helperPort),"--no-browser","--launch","editor"],
+    {cwd:directory,detached:true,stdio:"ignore",windowsHide:true});
+  child.on("error",()=>{});
+  child.unref();
+  for (let index=0;index<20;index++) {
+    await new Promise((done)=>setTimeout(done,500));
+    if (await helperReady()) return helperUrl;
+  }
+  throw new Error("本地工作台没有启动成功。请确认 Python 3.9+ 和 tools/live_preview.py 可用。");
+}
 
 async function launch() {
   const candidates = [process.env.SC2_WORKBENCH_CHROME,
@@ -23,7 +49,8 @@ async function launch() {
   if (!browser) throw new Error("找不到 Edge 或 Chrome。请在 SC2_WORKBENCH_CHROME 指定浏览器的完整路径。");
   const profile = join(process.env.LOCALAPPDATA || homedir(),"SC2WorkbenchCollaboration",String(port));
   await mkdir(profile,{recursive:true});
-  const url = pathToFileURL(join(directory,"index.html"));
+  const served=await ensureHelper();
+  const url = served ? new URL(served) : pathToFileURL(join(directory,"index.html"));
   url.searchParams.set("agentCollab","1");
   const child = spawn(browser,[
     "--remote-debugging-address=127.0.0.1","--remote-debugging-port="+port,
@@ -41,8 +68,9 @@ async function connect() {
   const tabs = (await response.json()).filter((tab)=>{
     if (tab.type!=="page") return false;
     const url = new URL(tab.url);
-    return url.protocol===expected.protocol && url.pathname===expected.pathname &&
-      url.searchParams.get("agentCollab")==="1" &&
+    const isFile = url.protocol===expected.protocol && url.pathname===expected.pathname;
+    const isServed = url.protocol==="http:" && url.hostname==="127.0.0.1" && Number(url.port)===helperPort;
+    return (isFile || isServed) && url.searchParams.get("agentCollab")==="1" &&
       (!process.env.SC2_WORKBENCH_TAB_ID || tab.id===process.env.SC2_WORKBENCH_TAB_ID);
   });
   if (tabs.length!==1) throw new Error("请只打开一个此目录的 Agent 协作标签页。");

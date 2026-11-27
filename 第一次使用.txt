@@ -11,6 +11,7 @@ SC2 UI 工作台 · 第一次使用
 - 直接双击 index.html 仍可编辑和导出，但不会显示「写入 / 启动」按钮；浏览器不允许网页直接启动本地游戏程序。
 - 如果工作台已经在运行，再次双击 exe 会直接打开已有页面，不会重复启动。
 - 测试副本路径保存在 %LOCALAPPDATA%\SC2WorkbenchPreview\map.txt；网页切换后会自动更新。不要手工改这个文件来绕过页面上的目标确认。
+- 项目文件、贴图标注、收藏和素材目录保存在工作台目录的 data 文件夹中（例如 E:\Ai\sc2-ui-workbench\data）。换浏览器后仍会读取这份数据；不要删除 data。
 - 写入冲突会在页面列出实际冲突文件和 stage-report.json 路径；不会覆盖未确认的原文件。
 - 无窗口启动器出错时，日志写在 %LOCALAPPDATA%\SC2WorkbenchPreview\launcher.log。
 - 需要让本地 Agent 与你共用画布、批量修改并走定稿回导时，直接把工作台目录交给 Agent，说「打开工作台协作」即可；不用自己打开 PowerShell。Agent 会使用 `skills/sc2-workbench-collab` 启动协作页。普通实机预览仍双击启动器即可。

@@ -9,7 +9,9 @@
 3. Agent 分批添加或修改控件。你会在同一画布上看到改动，可以照常拖动、改属性或撤销。点击「暂停 Agent」可暂时自己编辑。选中控件后点击「指出问题」，留言会连同控件编号交给 Agent。
 4. 回导前在协作栏点击「选择回导地图」，选取这次要写入的组件地图目录。Agent 完成后会提交定稿摘要。核对画布和目标路径后，打开「查看定稿」，点击「确认定稿并交给 Agent 回导」。
 
-启动命令使用独立的浏览器配置保存协作草稿。第一次可从原工作台保存项目 JSON，再在协作标签页打开。已有浏览器集成也可以直接打开同目录 `index.html?agentCollab=1`，通过原有浏览器控制通道调用 `window.SC2WorkbenchCollaboration`。
+`agent.mjs start` 会启动本地工作台助手，并用 `127.0.0.1` 协作页代替 `file://`。项目文件、标注、收藏和素材目录保存在工作台目录的 `data/` 中，普通启动器和协作页共用；更换浏览器后不需要重新授权素材目录。
+
+第一次使用可以从原工作台保存项目 JSON，再让 Agent 用 `open` 打开，或在协作页导入。已有浏览器集成也可以直接打开同目录 `index.html?agentCollab=1`，通过原有浏览器控制通道调用 `window.SC2WorkbenchCollaboration`。
 
 ## 给本地 Agent
 
@@ -26,7 +28,7 @@
 | `node agent.mjs claim 定稿ID 回导.zip` | 核对定稿、文件和目标路径，开始本地接入 |
 | `node agent.mjs report 定稿ID result.json` | 把接入或编译结果显示在工作台协作栏 |
 
-如需指定浏览器，使用环境变量 `SC2_WORKBENCH_CHROME`，值为其可执行文件的完整路径。端口默认为本机 9226，可用 `SC2_WORKBENCH_PORT` 修改。现有测试副本的增量回导和接入前校验需 Python 3.9 或更新版。如命令名不是 `python`，可用 `SC2_WORKBENCH_PYTHON` 指定。
+如需指定浏览器，使用环境变量 `SC2_WORKBENCH_CHROME`，值为其可执行文件的完整路径。协作调试端口默认为本机 9226，可用 `SC2_WORKBENCH_PORT` 修改；工作台页面端口默认为 8765，可用 `SC2_WORKBENCH_HELPER_PORT` 修改。现有测试副本的增量回导和接入前校验需 Python 3.9 或更新版。如命令名不是 `python`，可用 `SC2_WORKBENCH_PYTHON` 指定。
 
 ### 编辑 JSON 示例
 

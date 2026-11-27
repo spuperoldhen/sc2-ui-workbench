@@ -1132,6 +1132,7 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
         <div class="project-tools"><button type="button" id="newShelfProject" class="quiet">新建空白</button><button type="button" id="saveShelfProject">保存当前</button><button type="button" id="saveNewShelfProject">另存为</button></div>
         <div class="project-tools"><button type="button" id="filterFavoriteProjects" class="quiet" aria-pressed="false">只看收藏</button></div>
         <p id="projectShelfStatus" role="status"></p>
+        <p id="projectPersistenceNote" class="hint"></p>
       </div>
       <div id="projectList" aria-label="项目合成画布快照"></div>
       <div class="project-shelf-foot">
@@ -2258,8 +2259,58 @@ const styleExamples = {
   "":"映射到游戏默认样式", ModCenterSize16:"战役样式示例 · 居中 16"
 };
 const STORE_KEY = "sc2-dialog-workbench-v1";
-const workbenchVersion = "1.3.0";
+const workbenchVersion = "1.4.0";
 let agentSession;
+const localStoreToken = document.querySelector('meta[name="sc2-preview-bridge"]')?.content || "";
+const localStore = {available:false, data:null, error:"", promise:null};
+async function localStoreRequest(path, options={}) {
+  if (location.hostname !== "127.0.0.1" || !localStoreToken || localStoreToken === "offline") {
+    throw new Error("本地数据接口只能在启动器页面使用。");
+  }
+  const headers = {...(options.headers || {}), "X-SC2-Preview-Token": localStoreToken};
+  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  const response = await fetch(path, {...options, headers, cache:"no-store"});
+  const value = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(value.message || "本地数据接口失败。");
+  return value;
+}
+async function initLocalStore() {
+  if (localStore.available) return localStore.data;
+  if (location.hostname !== "127.0.0.1") return null;
+  localStore.promise ||= localStoreRequest("/api/workbench/state").then((data) => {
+    localStore.available = true;
+    localStore.data = data;
+    applyLocalProjectFlags(data.projectFlags || {});
+    if (Array.isArray(data.favorites)) assetPickerPrefs.favorites = data.favorites;
+    if (typeof data.preferFavorites === "boolean") assetPickerPrefs.preferFavorites = data.preferFavorites;
+    const prefer=document.getElementById("agentPreferFavorites");
+    if (prefer) prefer.checked=assetPickerPrefs.preferFavorites;
+    if (document.getElementById("assetsDialog")?.open) renderAssets();
+    return data;
+  }).catch((error) => {
+    localStore.error = error.message;
+    localStore.promise = null;
+    return null;
+  });
+  return localStore.promise;
+}
+async function saveLocalSettings(settings) {
+  if (!localStore.available) return false;
+  try {
+    const data = await localStoreRequest("/api/workbench/settings", {method:"POST", body:JSON.stringify({settings})});
+    localStore.data = {...localStore.data, ...data};
+    return true;
+  } catch (error) {
+    localStore.error = error.message;
+    return false;
+  }
+}
+function applyLocalProjectFlags(flags) {
+  projectFlags.clear();
+  for (const [key,value] of Object.entries(flags || {})) {
+    if (value?.favorite || value?.pinned) projectFlags.set(key,{favorite:value.favorite===true,pinned:value.pinned===true});
+  }
+}
 const autoSelectDialogsKey = STORE_KEY+"-auto-select-dialogs";
 const tourKey = STORE_KEY+"-quick-start";
 const tourSteps = [
@@ -6139,7 +6190,7 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
 function mapReturnInstructions(plan) {
   if (plan.manifest?.revision) return revisionPackageInstructions(plan)+behaviorArchiveNote(plan.manifest)+globalExposureNote(plan.manifest);
   if (plan.previewScope) return [
-    "SC2 UI 工作台 v1.3.0 · 实机预览",
+    "SC2 UI 工作台 v1.4.0 · 实机预览",
     "",
     (plan.previewScope.sceneOverview ? "合成画布已开启，预览全部对话框。" : "合成画布已关闭，预览当前对话框。"),
     "预览范围见 ui_manifest.json 的 preview，按 files 中的路径将「地图文件」部署到专用测试副本。",
@@ -11185,8 +11236,10 @@ try {
 } catch {}
 
 function saveProjectFlags() {
-  try { localStorage.setItem(projectFlagsKey,JSON.stringify(Object.fromEntries([...projectFlags].filter(([key])=>!key.startsWith("draft:"))))); }
+  const flags=Object.fromEntries([...projectFlags].filter(([key])=>!key.startsWith("draft:")));
+  try { localStorage.setItem(projectFlagsKey,JSON.stringify(flags)); }
   catch {}
+  if (localStore.available) saveLocalSettings({projectFlags:flags});
 }
 function toggleProjectFlag(key,property) {
   const settings={...projectFlags.get(key)};
@@ -11207,6 +11260,20 @@ function setProjectFile(file,data=null) {
 }
 function activeIndexedProject() {
   return projectConnection && projectFile?.directory===projectConnection.id ? projectFile : null;
+}
+function localProjectsActive() {
+  return Boolean(projectConnection?.local);
+}
+async function localProjectFile(name) {
+  return localStoreRequest(`/api/workbench/project?name=${encodeURIComponent(name)}`);
+}
+async function localProjectIndex() {
+  const data=await initLocalStore();
+  if (!data) throw new Error("本地项目库不可用。");
+  return (data.projects || []).map((row)=>({...row,directory:"local"}));
+}
+async function saveLocalProjectFile(name,data) {
+  return localStoreRequest("/api/workbench/project",{method:"POST",body:JSON.stringify({name,data})});
 }
 function draftProjectKey(file) {
   return file ? file.directory+":"+file.name : currentScratchKey;
@@ -11310,7 +11377,9 @@ async function scanProjectDirectory(handle) {
   return results.sort((a,b)=>b.modified-a.modified || a.name.localeCompare(b.name,"zh-CN"));
 }
 function updateProjectShelfControls() {
-  $("authorizeProjectDirectory").hidden=!projectShelfNeedsPermission;
+  const local=localProjectsActive();
+  $("chooseProjectDirectory").hidden=local;
+  $("authorizeProjectDirectory").hidden=local || !projectShelfNeedsPermission;
   $("chooseProjectDirectory").disabled=projectShelfBusy;
   $("authorizeProjectDirectory").disabled=projectShelfBusy;
   $("refreshProjects").disabled=projectShelfBusy || !projectDirectoryAvailable;
@@ -11373,6 +11442,22 @@ function openProjectRename(item) {
 }
 async function renameShelfProject(item,name) {
   const record=projectShelfDrafts.get(item.key);
+  if (item.entry && localProjectsActive()) {
+    const data=await localProjectFile(item.entry.name);
+    data.projectName=name;
+    const written=await localStoreRequest("/api/workbench/project",{method:"POST",
+      body:JSON.stringify({name:item.entry.name,data,create:false})});
+    if (activeIndexedProject()?.name===item.entry.name) {
+      workspace.projectName=name;
+      saveDraft();
+    }
+    item.entry.title=name;
+    item.entry.size=written.size;
+    item.entry.modified=written.modified;
+    if (record) record.data=JSON.stringify({...JSON.parse(record.data),projectName:name});
+    renderProjectShelf();
+    return;
+  }
   if (item.entry) {
     if (!projectDirectoryAvailable) throw new Error("请先授权项目目录。");
     const {entry}=item;
@@ -11415,6 +11500,22 @@ function openProjectDelete(item) {
 async function deleteShelfProject(item) {
   const {entry,key}=item;
   const deletingActive=draftProjectKey(projectFile)===key;
+  if (entry && localProjectsActive()) {
+    await localStoreRequest("/api/workbench/project-delete",{method:"POST",
+      body:JSON.stringify({name:entry.name})});
+    projectIndex=projectIndex.filter((row)=>row!==entry);
+    await setShelfDraft(key,null);
+    projectShelfDrafts.delete(key);
+    projectFlags.delete(key);
+    saveProjectFlags();
+    if (deletingActive) {
+      restoreShelfProject(singleWorkspace(createProject()),null,null,"draft:"+createShelfId());
+      $("projectFileName").value="";
+    }
+    renderProjectShelf();
+    $("projectShelfStatus").textContent="已从本地项目库删除「"+(entry.title || entry.name)+"」。";
+    return;
+  }
   if (entry) {
     const connection=projectConnection;
     if (!connection || entry.directory!==connection.id) throw new Error("请先连接项目所在的本地目录。");
@@ -11460,7 +11561,8 @@ function renderProjectShelf() {
     const selected=active?.name===entry.name;
     items.push({key,entry,name:entry.title || localProjectName(entry.name),count:selected ? workspace.dialogs.length : entry.count,
       selected,temporary:selected ? Boolean(active.dirty) : Boolean(record),
-      load:()=>selected ? workspaceFile() : record ? JSON.parse(record.data) : entry.handle.getFile().then(readLocalProjectFile),
+      load:()=>selected ? workspaceFile() : record ? JSON.parse(record.data) :
+        localProjectsActive() ? localProjectFile(entry.name) : entry.handle.getFile().then(readLocalProjectFile),
       open:()=>openIndexedProject(entry)});
   }
   const visible=projectFavoritesOnly ? items.filter(({key})=>projectFlags.get(key)?.favorite) : items;
@@ -11493,6 +11595,14 @@ async function runProjectShelfOperation(action) {
 }
 async function refreshLocalProjects() {
   if (!projectConnection) return;
+  if (localProjectsActive()) {
+    const data=await localStoreRequest("/api/workbench/state");
+    localStore.data=data;
+    projectIndex=((data?.projects) || []).map((row)=>({...row,directory:"local"}));
+    $("projectShelfStatus").textContent="本地项目库 · "+projectIndex.length+" 个项目 · "+(data?.dataRoot || "data/projects");
+    renderProjectShelf();
+    return;
+  }
   const {handle}=projectConnection;
   const permission=await handle.queryPermission({mode:"readwrite"});
   projectShelfNeedsPermission=permission!=="granted";
@@ -11510,6 +11620,17 @@ async function restoreProjectDirectory() {
   projectShelfChecked=true;
   await runProjectShelfOperation(async ()=>{
     await restoreShelfDrafts();
+    const local=await initLocalStore();
+    if (local) {
+      projectConnection={source:"projects",id:"local",local:true};
+      projectDirectoryAvailable=true;
+      projectShelfNeedsPermission=false;
+      projectIndex=(local.projects || []).map((row)=>({...row,directory:"local"}));
+      $("projectPersistenceNote").textContent="项目保存在工作台目录 data/projects；更换浏览器后仍可读取。";
+      $("projectShelfStatus").textContent="本地项目库 · "+projectIndex.length+" 个项目 · "+local.dataRoot;
+      renderProjectShelf();
+      return;
+    }
     renderProjectShelf();
     if (typeof window.showDirectoryPicker!=="function") {
       $("projectShelfStatus").textContent="此浏览器会下载项目 JSON。选取本地目录可用 Chrome 或 Edge。";
@@ -11546,6 +11667,10 @@ async function pickLocalProjectDirectory() {
   if (!remembered) $("projectShelfStatus").textContent+=" · 浏览器未能记住目录";
 }
 function chooseProjectDirectory() {
+  if (localProjectsActive()) {
+    $("projectShelfStatus").textContent="项目已保存在工作台目录 data/projects，不需要额外授权。";
+    return;
+  }
   if (typeof window.showDirectoryPicker!=="function") {
     $("projectShelfStatus").textContent="此浏览器不支持选取可写目录，可在「项目」菜单打开或下载 JSON。";
     return;
@@ -11553,7 +11678,17 @@ function chooseProjectDirectory() {
   return runProjectShelfOperation(pickLocalProjectDirectory);
 }
 async function ensureProjectDirectory() {
-  if (projectDirectoryAvailable) return;
+  if (!projectConnection) {
+    const local=await initLocalStore();
+    if (local) {
+      projectConnection={source:"projects",id:"local",local:true};
+      projectDirectoryAvailable=true;
+      projectShelfNeedsPermission=false;
+      projectIndex=(local.projects || []).map((row)=>({...row,directory:"local"}));
+      $("projectPersistenceNote").textContent="项目保存在工作台目录 data/projects；更换浏览器后仍可读取。";
+    }
+  }
+  if (projectDirectoryAvailable || localProjectsActive()) return;
   if (projectConnection) {
     await projectConnection.handle.requestPermission({mode:"readwrite"});
     await refreshLocalProjects();
@@ -11562,7 +11697,7 @@ async function ensureProjectDirectory() {
 }
 function authorizeProjectDirectory() {
   return runProjectShelfOperation(async ()=>{
-    if (!projectConnection) return;
+    if (!projectConnection || localProjectsActive()) return;
     await projectConnection.handle.requestPermission({mode:"readwrite"});
     await refreshLocalProjects();
   });
@@ -11570,9 +11705,15 @@ function authorizeProjectDirectory() {
 function openIndexedProject(entry) {
   if (!projectDirectoryAvailable || activeIndexedProject()?.name===entry.name) return;
   return runProjectShelfOperation(async ()=>{
-    const saved=await entry.handle.getFile();
-    const data=await readLocalProjectFile(saved);
-    const file={directory:projectConnection.id,name:entry.name,modified:saved.lastModified,size:saved.size};
+    let data, file;
+    if (localProjectsActive()) {
+      data=await localProjectFile(entry.name);
+      file={directory:"local",name:entry.name,modified:entry.modified,size:entry.size};
+    } else {
+      const saved=await entry.handle.getFile();
+      data=await readLocalProjectFile(saved);
+      file={directory:projectConnection.id,name:entry.name,modified:saved.lastModified,size:saved.size};
+    }
     await stashShelfProject();
     const draft=projectShelfDrafts.get(draftProjectKey(file));
     restoreShelfProject(draft ? JSON.parse(draft.data) : data,draft?.file || file,projectContentKey(data));
@@ -11599,7 +11740,10 @@ function saveIndexedProject(asNew=false) {
       download(name,JSON.stringify({...workspaceFile(),projectName:localProjectName(name)})+"\n","application/json");
       $("projectShelfStatus").textContent="已发起「"+name+"」的下载。可用「打开项目 JSON」重新打开。";
     };
-    if (!projectConnection && typeof window.showDirectoryPicker!=="function") return saveDownload();
+    if (!projectConnection) {
+      const local=await initLocalStore();
+      if (!local && typeof window.showDirectoryPicker!=="function") return saveDownload();
+    }
     try { await ensureProjectDirectory(); }
     catch (error) {
       if (error.name==="SecurityError") return saveDownload();
@@ -11610,6 +11754,36 @@ function saveIndexedProject(asNew=false) {
       throw error;
     }
     if (workspace!==destination) throw new Error("当前项目已切换，请重新保存。");
+    if (localProjectsActive()) {
+      const previous=activeIndexedProject();
+      const creating=asNew || !previous;
+      const name=creating ? validProjectFilename(requestedName) : previous.name;
+      const saved=workspaceFile();
+      if (creating) saved.projectName=localProjectName(name);
+      const savedContent=projectContentKey(saved);
+      const content=JSON.stringify(saved)+"\n";
+      if (new Blob([content]).size>maxProjectFileSize) throw new Error("项目文件大于 24 MB。");
+      const written=await localStoreRequest("/api/workbench/project",{method:"POST",
+        body:JSON.stringify({name,data:saved,create:creating})});
+      if (workspace===destination) {
+        const oldKey=draftProjectKey(projectFile);
+        const flags=projectFlags.get(oldKey);
+        if (creating) workspace.projectName=saved.projectName;
+        setProjectFile({directory:"local",name:written.name,modified:written.modified,size:written.size},savedContent);
+        saveDraft();
+        await setShelfDraft(oldKey,null);
+        if (creating && oldKey.startsWith("draft:") && flags) {
+          projectFlags.delete(oldKey);
+          projectFlags.set(draftProjectKey(projectFile),flags);
+          saveProjectFlags();
+        }
+      }
+      $("projectFileName").value=localProjectName(written.name);
+      projectShelfPage=0;
+      await refreshLocalProjects();
+      $("projectShelfStatus").textContent="已保存到本地项目库「"+written.name+"」。";
+      return;
+    }
     const {handle:directory,id}=projectConnection;
     const previous=activeIndexedProject();
     const creating=asNew || !previous;
@@ -11940,9 +12114,9 @@ function renderAssetFolderState(state) {
   $(state.status).textContent = state.message || "";
   if (!state.busy && $("assetsDialog").open && !$("assetClassificationForm").contains(document.activeElement)) renderAssets();
 }
-async function loadAssetFolder(state,files,handle=null) {
-  const id=handle ? await identifyAssetLibrary(state.source,handle) : null;
-  const grant={source:state.source,handle,id};
+async function loadAssetFolder(state,files,handle=null,localMeta=null) {
+  const id=handle ? await identifyAssetLibrary(state.source,handle) : localMeta?.id || null;
+  const grant={source:state.source,handle,id,...(localMeta?.path ? {path:localMeta.path} : {})};
   for (const file of files) if (previewExtensions.test(file.name)) assetFolderGrants.set(file,grant);
   let count;
   if (state.source === "icons") {
@@ -11954,7 +12128,45 @@ async function loadAssetFolder(state,files,handle=null) {
     count = result.count;
   }
   state.grant=grant;
+  state.handle=handle;
+  state.localPath=localMeta?.path || null;
+  state.libraryId=id;
+  state.needsPermission=false;
   return count;
+}
+async function localAssetFiles(tree,source) {
+  const files=[];
+  const rows=tree.files || [];
+  for (let start=0;start<rows.length;start+=8) {
+    const batch=rows.slice(start,start+8);
+    const loaded=await Promise.all(batch.map(async (row)=>{
+      const url=`/api/workbench/asset-file?source=${encodeURIComponent(source)}&path=${encodeURIComponent(row.path)}&token=${encodeURIComponent(localStoreToken)}`;
+      const response=await fetch(url,{cache:"no-store"});
+      if (!response.ok) throw new Error("无法读取素材 "+row.path+"。");
+      const blob=await response.blob();
+      const file=new File([blob],row.path.split("/").at(-1),{type:blob.type || undefined});
+      Object.defineProperty(file,"webkitRelativePath",{value:tree.name+"/"+row.path});
+      return file;
+    }));
+    files.push(...loaded);
+  }
+  return files;
+}
+async function loadLocalAssetFolder(state,source=state.source) {
+  state.busy=true;
+  state.message="正在读取本机"+state.label+"目录…";
+  renderAssetFolderState(state);
+  try {
+    const tree=await localStoreRequest(`/api/workbench/asset-tree?source=${encodeURIComponent(source)}`);
+    const files=await localAssetFiles(tree,source);
+    const count=await loadAssetFolder(state,files,null,{id:tree.libraryId,path:tree.path,name:tree.name});
+    state.message=state.label+" · "+tree.name+" · "+count.toLocaleString("zh-CN")+" 项 · 工作台本地数据";
+    notify(state.message);
+    return count;
+  } finally {
+    state.busy=false;
+    renderAssetFolderState(state);
+  }
 }
 async function identifyAssetLibrary(source,handle) {
   try {
@@ -12003,6 +12215,25 @@ async function connectRememberedAssetFolder(state,handle,action) {
 async function chooseAssetFolder(state) {
   if (state.busy) return;
   state.changed = true;
+  const local=await initLocalStore();
+  if (local) {
+    state.busy=true;
+    state.message="请选择本机"+state.label+"目录…";
+    renderAssetFolderState(state);
+    try {
+      const picked=await localStoreRequest("/api/workbench/pick-folder",{method:"POST",
+        body:JSON.stringify({source:state.source})});
+      if (picked.cancelled) return;
+      localStore.data.assetFolders={...(localStore.data.assetFolders || {}),[state.source]:picked.path};
+      await loadLocalAssetFolder(state);
+    } catch (error) {
+      state.message=error.message || "无法读取目录。";
+    } finally {
+      state.busy=false;
+      renderAssetFolderState(state);
+    }
+    return;
+  }
   if (state.useFileInput || typeof window.showDirectoryPicker !== "function") {
     $(state.input).click();
     return;
@@ -12036,6 +12267,25 @@ async function restoreAssetFolder(state,action) {
 }
 async function forgetAssetFolder(state) {
   if (state.busy || (!state.handle && !state.grant)) return;
+  if (await initLocalStore()) {
+    state.busy=true;
+    renderAssetFolderState(state);
+    try {
+      await saveLocalSettings({assetFolders:{[state.source]:""}});
+      localStore.data.assetFolders={...(localStore.data.assetFolders || {}),[state.source]:""};
+      state.handle=null;
+      state.grant=null;
+      state.localPath=null;
+      state.needsPermission=false;
+      state.message="已从本机数据中清除"+state.label+"目录。本次已载入素材仍可使用。";
+    } catch (error) {
+      state.message=error.message || "暂时无法更新目录记录。请重试。";
+    } finally {
+      state.busy=false;
+      renderAssetFolderState(state);
+    }
+    return;
+  }
   state.busy = true;
   renderAssetFolderState(state);
   try {
@@ -12078,6 +12328,19 @@ function installAssetFolders() {
 }
 async function restoreAssetFolders() {
   const status = $("assetFolderStorageStatus");
+  const local=await initLocalStore();
+  if (local) {
+    const folders=local.assetFolders || {};
+    status.textContent=Object.values(folders).some(Boolean) ?
+      "正在从工作台本地数据恢复素材目录…" : "素材目录会保存在工作台 data 目录。";
+    await Promise.all(Object.entries(folders).map(async ([source,path])=>{
+      if (!path || !Object.hasOwn(assetFolders,source)) return;
+      try { await loadLocalAssetFolder(assetFolders[source],source); }
+      catch (error) { assetFolders[source].message=error.message || "无法读取素材目录。"; }
+    }));
+    if (Object.values(folders).some(Boolean)) status.textContent="素材目录已从工作台本地数据恢复。";
+    return;
+  }
   if (typeof window.showDirectoryPicker !== "function") {
     status.textContent = "此浏览器支持临时导入。记住目录可使用 Chrome 或 Edge。";
     return;
@@ -12420,9 +12683,17 @@ function assetAnnotationMatches(entry,filter) {
 
 function restoreAssetAnnotations() {
   if (!assetAnnotationLoad) {
-    assetAnnotationLoad=assetFolderTransaction("readonly",(store)=>store.getAll(),assetAnnotationStore)
-      .then((records)=>{for (const record of records) assetAnnotations.set(record.id,record);})
-      .catch((error)=>{assetAnnotationLoad=null;throw error;});
+    assetAnnotationLoad=(async()=>{
+      const local=await initLocalStore();
+      if (local) {
+        for (const [id,record] of Object.entries(local.annotations || {})) {
+          if (record && typeof record==="object") assetAnnotations.set(id,{id,...record});
+        }
+        return;
+      }
+      const records=await assetFolderTransaction("readonly",(store)=>store.getAll(),assetAnnotationStore);
+      for (const record of records) assetAnnotations.set(record.id,record);
+    })().catch((error)=>{assetAnnotationLoad=null;throw error;});
   }
   return assetAnnotationLoad;
 }
@@ -12489,6 +12760,9 @@ function saveAssetAnnotations(changes,author,guard=()=>{}) {
     for (const [id,record] of updates) {
       if (record) assetAnnotations.set(id,record);
       else assetAnnotations.delete(id);
+    }
+    if (localStore.available) {
+      await saveLocalSettings({annotations:Object.fromEntries(assetAnnotations)});
     }
     if ($("assetsDialog").open && !$("assetClassificationForm").contains(document.activeElement)) renderAssets();
     return {changed:updates.size,skipped};
@@ -12688,8 +12962,12 @@ function loadAssetPickerPrefs() {
     ratio:Object.hasOwn(assetThumbRatios,saved?.ratio) ? saved.ratio : "auto"};
 }
 function saveAssetPickerPrefs() {
-  try { localStorage.setItem(assetPickerPrefsKey,JSON.stringify(assetPickerPrefs)); return true; }
+  try { localStorage.setItem(assetPickerPrefsKey,JSON.stringify(assetPickerPrefs)); }
   catch { return false; }
+  if (localStore.available) {
+    saveLocalSettings({favorites:assetPickerPrefs.favorites,preferFavorites:assetPickerPrefs.preferFavorites});
+  }
+  return true;
 }
 function originalAssetMetadata(entry) {
   if (!nativeAssetFacets.size) {
