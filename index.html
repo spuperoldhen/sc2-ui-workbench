@@ -1046,6 +1046,12 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
 .agent-feedback{display:flex;flex-basis:100%;gap:8px}
 .agent-feedback[hidden]{display:none}
 .agent-feedback input{flex:1;min-width:8em}
+.asset-classification{margin:8px 0;border-top:1px solid var(--line);padding-top:7px}
+.asset-classification summary{cursor:pointer}
+.asset-classification form{display:grid;gap:6px;margin-top:8px}
+.asset-classification label{display:grid;gap:3px}
+.asset-classification input,.asset-classification select{width:100%;min-width:0}
+.asset-classification-actions{display:flex;flex-wrap:wrap;gap:6px}
 .agent-review-body{padding:14px;display:grid;gap:10px}
 .agent-review-body p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .agent-review-actions{display:flex;justify-content:flex-end;gap:8px}
@@ -1694,8 +1700,10 @@ gv_TutorialButton = TutorialUI_Button_2;</code></pre>
     </div>
     <div class="asset-filters">
       <select id="assetCategory" aria-label="用途"><option value="">所有用途</option><option value="btn">图标 btn-*</option><option value="ui">UI 贴图</option><option value="other">其他本地贴图</option></select>
-      <select id="assetRace" aria-label="种族"><option value="">所有种族</option><option value="terran">人族</option><option value="protoss">星灵</option><option value="zerg">异虫</option><option value="neutral">通用</option></select>
-      <select id="assetShape" aria-label="图集形态"><option value="">所有形态</option><option value="单帧">单帧</option><option value="双态图集">双态图集</option><option value="四态图集">四态图集</option></select>
+      <select id="assetRace" aria-label="种族"><option value="">所有种族</option><option value="terran">人族</option><option value="protoss">星灵</option><option value="zerg">异虫</option><option value="neutral">通用</option><option value="unknown">种族待核对</option></select>
+      <select id="assetShape" aria-label="图集形态"><option value="">所有形态</option><option value="单帧">单帧</option><option value="双态图集">双态图集</option><option value="三态图集">三态图集</option><option value="四态图集">四态图集</option><option value="unknown">形态待核对</option></select>
+      <select id="assetAnnotationFilter" aria-label="标注状态"><option value="">所有标注</option><option value="unmarked">未打标</option><option value="manual">我的标注</option><option value="agent">Agent 标注</option></select>
+      <label class="checkrow" title="Agent 搜索素材时，先返回符合用途的收藏"><input id="agentPreferFavorites" type="checkbox">Agent 优先用收藏</label>
     </div>
     <div class="asset-browse-bar">
       <div id="assetScopes" class="asset-scopes" role="group" aria-label="贴图范围">
@@ -1738,6 +1746,20 @@ gv_TutorialButton = TutorialUI_Button_2;</code></pre>
           <button id="assetCopyPath" type="button" disabled>复制路径</button>
           <button id="assetDownloadDds" type="button" disabled>下载 DDS</button>
         </div>
+        <details id="assetClassification" class="asset-classification" hidden>
+          <summary id="assetClassificationSummary">编辑分类和标签</summary>
+          <form id="assetClassificationForm">
+            <label>显示名<input id="assetAnnotationLabel" type="text" maxlength="100" placeholder="沿用原名称"></label>
+            <label>用途<select id="assetAnnotationKind"><option value="">沿用原用途</option><option value="unknown">待核对</option></select></label>
+            <label>种族<select id="assetAnnotationRace"><option value="">沿用原种族</option><option value="unknown">待核对</option></select></label>
+            <label>形态<select id="assetAnnotationShape"><option value="">沿用原形态</option><option value="unknown">待核对</option></select></label>
+            <label>标签<input id="assetAnnotationTags" type="text" maxlength="520" placeholder="例如：金边、深色、战绩"></label>
+            <div class="asset-classification-actions">
+              <button id="assetAnnotationSave" type="submit">保存我的标注</button>
+              <button id="assetAnnotationReset" type="button" class="quiet">恢复原始分类</button>
+            </div>
+          </form>
+        </details>
         <div class="asset-target-bar">
           <p id="assetTarget"></p>
           <div id="assetTargetMode" class="asset-target-mode" role="group" aria-label="应用方式" hidden>
@@ -2236,7 +2258,7 @@ const styleExamples = {
   "":"映射到游戏默认样式", ModCenterSize16:"战役样式示例 · 居中 16"
 };
 const STORE_KEY = "sc2-dialog-workbench-v1";
-const workbenchVersion = "1.1.0";
+const workbenchVersion = "1.2.0";
 let agentSession;
 const autoSelectDialogsKey = STORE_KEY+"-auto-select-dialogs";
 const tourKey = STORE_KEY+"-quick-start";
@@ -6117,7 +6139,7 @@ function buildAgentManifest(project,plan,resources,packagedResources) {
 function mapReturnInstructions(plan) {
   if (plan.manifest?.revision) return revisionPackageInstructions(plan)+behaviorArchiveNote(plan.manifest)+globalExposureNote(plan.manifest);
   if (plan.previewScope) return [
-    "SC2 UI 工作台 v1.1.0 · 实机预览",
+    "SC2 UI 工作台 v1.2.0 · 实机预览",
     "",
     (plan.previewScope.sceneOverview ? "合成画布已开启，预览全部对话框。" : "合成画布已关闭，预览当前对话框。"),
     "预览范围见 ui_manifest.json 的 preview，按 files 中的路径将「地图文件」部署到专用测试副本。",
@@ -11779,7 +11801,7 @@ async function connectAssetBrowser(files) {
     const path = "Assets\\Textures\\"+item.n.replace(/\.dds$/i,"")+".dds";
     const info = labels[item.n];
     const label = string(info?.zh,160);
-    const tags = [item.grp,item.fac,item.typ,item.shape,...(Array.isArray(info?.tags) ? info.tags : [])]
+    const tags = [item.grp,...(Array.isArray(info?.tags) ? info.tags : [])]
       .filter((value)=>typeof value==="string").join(" ");
     const thumbnail={name:file.name,file,browserThumbnail:true};
     const browser={label,kind:item.typ,race:item.fac,shape:item.shape,width:item.ow,height:item.oh,thumbnail};
@@ -11808,6 +11830,9 @@ function installAssetBrowser() {
   address.onchange = () => updateAssetBrowserLink(true);
 }
 const assetFolderStore = "sources";
+const assetAnnotationStore = "assetAnnotations";
+const assetLibraryIdStore = "assetLibraryIds";
+const assetFolderGrants = new WeakMap();
 const assetFolders = {
   icons:{source:"icons",choose:"chooseAssetBrowser",input:"assetBrowserFolderInput",
     status:"assetBrowserStatus",restore:"restoreAssetBrowser",forget:"forgetAssetBrowser",label:"图标浏览器"},
@@ -11816,7 +11841,7 @@ const assetFolders = {
 };
 function openAssetFolderDatabase() {
   return new Promise((resolve,reject)=>{
-    const request = indexedDB.open(STORE_KEY+"-asset-folders",3);
+    const request = indexedDB.open(STORE_KEY+"-asset-folders",4);
     let expired = false;
     const timer = setTimeout(()=>{
       expired = true;
@@ -11826,6 +11851,10 @@ function openAssetFolderDatabase() {
       if (oldVersion < 1) request.result.createObjectStore(assetFolderStore,{keyPath:"source"});
       if (oldVersion < 2) request.result.createObjectStore("templates",{keyPath:"id"});
       if (oldVersion < 3) request.result.createObjectStore(shelfDraftStore,{keyPath:"key"});
+      if (oldVersion < 4) {
+        request.result.createObjectStore(assetAnnotationStore,{keyPath:"id"});
+        request.result.createObjectStore(assetLibraryIdStore,{keyPath:"id"});
+      }
     };
     request.onsuccess = () => {
       clearTimeout(timer);
@@ -11906,20 +11935,37 @@ function renderAssetFolderState(state) {
   $(state.choose).disabled = Boolean(state.busy);
   $(state.restore).hidden = !state.needsPermission;
   $(state.restore).disabled = Boolean(state.busy);
-  $(state.forget).hidden = !state.handle;
+  $(state.forget).hidden = !state.handle && !state.grant;
   $(state.forget).disabled = Boolean(state.busy);
   $(state.status).textContent = state.message || "";
+  if (!state.busy && $("assetsDialog").open && !$("assetClassificationForm").contains(document.activeElement)) renderAssets();
 }
-async function loadAssetFolder(state,files,interactive=false) {
+async function loadAssetFolder(state,files,handle=null) {
+  const id=handle ? await identifyAssetLibrary(state.source,handle) : null;
+  const grant={source:state.source,handle,id};
+  for (const file of files) if (previewExtensions.test(file.name)) assetFolderGrants.set(file,grant);
+  let count;
   if (state.source === "icons") {
-    const count = await connectAssetBrowser(files);
-    if ($("assetsDialog").open) renderAssets();
+    count = await connectAssetBrowser(files);
     render(false);
-    return count;
+  } else {
+    const result = await importAssets(files,{interactive:false});
+    if (!result.count) throw new Error(result.issues[0] || "所选目录没有可导入的贴图。");
+    count = result.count;
   }
-  const {count,issues} = await importAssets(files,{interactive});
-  if (!count) throw new Error(issues[0] || "所选目录没有可导入的贴图。");
+  state.grant=grant;
   return count;
+}
+async function identifyAssetLibrary(source,handle) {
+  try {
+    const records=await assetFolderTransaction("readonly",(store)=>store.getAll(),assetLibraryIdStore);
+    for (const record of records) {
+      if (record.source===source && await handle.isSameEntry(record.handle)) return record.id;
+    }
+    const id=createShelfId();
+    await assetFolderTransaction("readwrite",(store)=>store.put({source,id,handle}),assetLibraryIdStore);
+    return id;
+  } catch { return null; }
 }
 async function connectRememberedAssetFolder(state,handle,action) {
   const remembered = action !== "choose";
@@ -11928,13 +11974,14 @@ async function connectRememberedAssetFolder(state,handle,action) {
     const permission = action === "authorize" ? await handle.requestPermission({mode:"read"}) :
       await handle.queryPermission({mode:"read"});
     if (permission !== "granted") {
+      state.grant = null;
       state.needsPermission = remembered;
       state.message = state.label+" · "+handle.name+" · 等待读取授权";
       return;
     }
     state.message = "正在读取 "+handle.name+"…";
     renderAssetFolderState(state);
-    const count = await loadAssetFolder(state,await readAssetFolder(state,handle),!remembered);
+    const count = await loadAssetFolder(state,await readAssetFolder(state,handle),handle);
     const message = state.label+" · "+handle.name+" · "+count.toLocaleString("zh-CN")+" 项";
     state.needsPermission = false;
     state.message = message+" · 已记住";
@@ -11988,12 +12035,13 @@ async function restoreAssetFolder(state,action) {
   }
 }
 async function forgetAssetFolder(state) {
-  if (state.busy || !state.handle) return;
+  if (state.busy || (!state.handle && !state.grant)) return;
   state.busy = true;
   renderAssetFolderState(state);
   try {
-    await assetFolderTransaction("readwrite",(store)=>store.delete(state.source));
+    if (state.handle) await assetFolderTransaction("readwrite",(store)=>store.delete(state.source));
     state.handle = null;
+    state.grant = null;
     state.needsPermission = false;
     state.message = "已取消恢复"+state.label+"目录。本次已载入素材仍可使用。";
   } catch {
@@ -12016,7 +12064,7 @@ function installAssetFolders() {
       state.message = "正在读取"+state.label+"目录…";
       renderAssetFolderState(state);
       try {
-        const count = await loadAssetFolder(state,files,true);
+        const count = await loadAssetFolder(state,files);
         state.message = state.label+" · "+count.toLocaleString("zh-CN")+" 项 · 本次已载入";
         notify(state.message);
       } catch (error) {
@@ -12280,24 +12328,370 @@ const assetKindLabels = {
   scroll:"滚动条与滑块",button:"按钮",bar:"进度条与能量条",effect:"光效与高亮",minimap:"小地图",
   frame:"边框、面板与背景",text:"文字与数字",campaign:"战役功能",other:"其他游戏贴图"
 };
-const assetFilterIds = ["assetQuery","assetCategory","assetRace","assetShape"];
+const assetFilterIds = ["assetQuery","assetCategory","assetRace","assetShape","assetAnnotationFilter"];
 const nativeAssetFacets = new Map();
 const assetPickerPrefs = loadAssetPickerPrefs();
+
+const assetShapes = ["单帧","双态图集","三态图集","四态图集"];
+const assetClassificationLabels = {manual:"我的标注",agent:"Agent 标注",original:"原始分类"};
+const assetKindAliases = {
+  unit:"btn_unit","单位":"btn_unit",ability:"btn_ability","技能":"btn_ability",upgrade:"btn_build",building:"btn_build",
+  "建筑":"btn_build","升级":"btn_build",avatar:"portrait","头像和肖像":"portrait",panel:"frame",background:"frame",
+  border:"frame",dropdown:"select",checkbox:"select",slider:"scroll",scrollbar:"scroll",progress:"bar"
+};
+const assetAnnotations = new Map();
+let assetAnnotationLoad, assetAnnotationWrites=Promise.resolve();
+
+function knownAssetKind(value) {
+  if (typeof value!=="string") return "";
+  const normalized=value.trim().toLowerCase().replace(/[-\s]+/g,"_");
+  if (Object.hasOwn(assetKindLabels,normalized)) return normalized;
+  return (Object.hasOwn(assetKindAliases,normalized) ? assetKindAliases[normalized] : "") ||
+    Object.keys(assetKindLabels).find((kind)=>assetKindLabels[kind]===value.trim()) || "";
+}
+
+function normalizeAssetRace(value) {
+  const normalized=typeof value==="string" ? value.trim().toLowerCase() : "";
+  if (Object.hasOwn(assetRaceLabels,normalized)) return normalized;
+  const aliases={人族:"terran",人类:"terran",星灵:"protoss",神族:"protoss",异虫:"zerg",虫族:"zerg",通用:"neutral",
+    common:"neutral",shared:"neutral"};
+  return Object.hasOwn(aliases,normalized) ? aliases[normalized] : "";
+}
+function normalizeAssetShape(value) {
+  const name=typeof value==="string" ? value.trim().toLowerCase() : "";
+  if (assetShapes.includes(name)) return name;
+  const aliases={single:"单帧",double:"双态图集",triple:"三态图集",quad:"四态图集"};
+  return Object.hasOwn(aliases,name) ? aliases[name] : "";
+}
+
+function inferAssetKind(name) {
+  for (const [pattern,kind] of [
+    [/^btn[-_](?:unit|hero)[-_]/,"btn_unit"],[/^btn[-_]ability[-_]/,"btn_ability"],
+    [/^btn[-_](?:build(?:ing)?|upgrade)[-_]/,"btn_build"],
+    [/(?:^|[-_])(?:profileavatar|avatar|portrait)[-_\.]/,"portrait"],
+    [/^(?:ui|hud)[-_].*(?:dropdown|check\s?box|listbox)/,"select"],
+    [/^(?:ui|hud)[-_].*(?:scrollbar|sliderhandle|slider)/,"scroll"],
+    [/^(?:ui|hud)[-_].*(?:tabbutton|tab[-_])/,"tab"],
+    [/^(?:ui|hud)[-_].*minimap/,"minimap"],
+    [/^(?:ui|hud)[-_].*(?:progressbar|progress[-_]|healthbar|energybar)/,"bar"],
+    [/^(?:ui|hud)[-_].*(?:button|btn)[-_]/,"button"],
+    [/^(?:ui|hud)[-_].*(?:border|panel|frame|background)[-_.]/,"frame"],
+    [/^(?:ui[-_])?hud[-_]/,"hud"]
+  ]) if (pattern.test(name)) return kind;
+  return "";
+}
+
+function assetDirectoryFile(entry) {
+  const original=entry.source?.file;
+  const thumbnail=entry.browser?.thumbnail?.file;
+  const current=(file)=>{
+    const grant=assetFolderGrants.get(file);
+    return grant && assetFolders[grant.source].grant===grant;
+  };
+  if (current(original)) return original;
+  if (current(thumbnail)) return thumbnail;
+  if (assetFolderGrants.has(original)) return original;
+  return assetFolderGrants.has(thumbnail) ? thumbnail : null;
+}
+
+function assetAnnotationId(entry) {
+  const file=assetDirectoryFile(entry);
+  const grant=file && assetFolderGrants.get(file);
+  const path=assetKey(entry.path);
+  if (!grant) return path;
+  const relative=fileRelative(file).toLowerCase();
+  return grant.id ? JSON.stringify([grant.source,grant.id,relative.split("/").slice(1).join("/"),path]) :
+    JSON.stringify([grant.source,relative,file.size,file.lastModified,path]);
+}
+
+function assetMetadata(entry) {
+  const original=originalAssetMetadata(entry);
+  const record=assetAnnotations.get(assetAnnotationId(entry));
+  return {...original,...record?.agent,...record?.manual,
+    classification:record?.manual ? "manual" : record?.agent ? "agent" : "original"};
+}
+
+function assetAnnotationMatches(entry,filter) {
+  if (!filter) return true;
+  const record=assetAnnotations.get(assetAnnotationId(entry));
+  if (filter==="unmarked") return !record?.manual && !record?.agent;
+  return Boolean(record?.[filter]);
+}
+
+function restoreAssetAnnotations() {
+  if (!assetAnnotationLoad) {
+    assetAnnotationLoad=assetFolderTransaction("readonly",(store)=>store.getAll(),assetAnnotationStore)
+      .then((records)=>{for (const record of records) assetAnnotations.set(record.id,record);})
+      .catch((error)=>{assetAnnotationLoad=null;throw error;});
+  }
+  return assetAnnotationLoad;
+}
+
+function cleanAssetAnnotation(value) {
+  if (!value || typeof value!=="object" || Array.isArray(value)) throw new Error("请输入分类或标签。");
+  const result={};
+  const options={kind:["unknown",...Object.keys(assetKindLabels)],race:["unknown",...Object.keys(assetRaceLabels)],
+    shape:["unknown",...assetShapes]};
+  for (const key of Object.keys(value)) {
+    const input=value[key];
+    if (Object.hasOwn(options,key)) {
+      if (input==="" || input===null) result[key]=null;
+      else if (options[key].includes(input)) result[key]=input;
+      else throw new Error("无效分类字段或值 "+key+"。");
+    } else if (key==="label" && typeof input==="string" && input.length<=100) {
+      result.label=input.trim().replace(/[\r\n]+/g," ") || null;
+    } else if (key==="tags" && Array.isArray(input) && input.length<=12 &&
+               input.every((tag)=>typeof tag==="string" && tag.trim().length<=40)) {
+      const tags=new Map();
+      for (const tag of input) if (tag.trim()) tags.set(tag.trim().toLowerCase(),tag.trim());
+      result.tags=[...tags.values()];
+    } else throw new Error("无效标注字段 "+key+"。标签最多 12 个，每个最多 40 字。");
+  }
+  return result;
+}
+
+function saveAssetAnnotations(changes,author,guard=()=>{}) {
+  if (!changes.length) return Promise.resolve({changed:0,skipped:0});
+  const operation=assetAnnotationWrites.then(async ()=>{
+    await restoreAssetAnnotations();
+    guard();
+    const updates=new Map();
+    let skipped=0;
+    await assetFolderTransaction("readwrite",(store)=>{
+      let last;
+      for (const {id,fields} of changes) {
+        const request=store.get(id);
+        request.onsuccess=()=>{
+          const record=request.result || {id};
+          if (fields===null) {
+            store.delete(id);
+            updates.set(id,null);
+            return;
+          }
+          const before=JSON.stringify(record[author] || {});
+          const next={...record[author]};
+          for (const [key,value] of Object.entries(fields)) {
+            if (author==="agent" && Object.hasOwn(record.manual || {},key)) { skipped++; continue; }
+            if (value===null || (key==="tags" && !value.length)) delete next[key];
+            else next[key]=value;
+          }
+          if (before===JSON.stringify(next)) return;
+          if (Object.keys(next).length) record[author]=next;
+          else delete record[author];
+          if (record.manual || record.agent) store.put(record);
+          else store.delete(id);
+          updates.set(id,record.manual || record.agent ? record : null);
+        };
+        last=request;
+      }
+      return last;
+    },assetAnnotationStore);
+    for (const [id,record] of updates) {
+      if (record) assetAnnotations.set(id,record);
+      else assetAnnotations.delete(id);
+    }
+    if ($("assetsDialog").open && !$("assetClassificationForm").contains(document.activeElement)) renderAssets();
+    return {changed:updates.size,skipped};
+  });
+  assetAnnotationWrites=operation.catch(()=>{});
+  return operation;
+}
+
+function installAssetClassification() {
+  for (const [id,items] of [
+    ["assetAnnotationKind",Object.entries(assetKindLabels)],
+    ["assetAnnotationRace",Object.entries(assetRaceLabels)],
+    ["assetAnnotationShape",assetShapes.map((shape)=>[shape,shape])]
+  ]) {
+    for (const [value,label] of items) {
+      const option=el("option","",label);
+      option.value=value;
+      $(id).append(option);
+    }
+  }
+  const prefer=$("agentPreferFavorites");
+  prefer.checked=assetPickerPrefs.preferFavorites;
+  prefer.onchange=()=>{
+    const previous=assetPickerPrefs.preferFavorites;
+    assetPickerPrefs.preferFavorites=prefer.checked;
+    if (!saveAssetPickerPrefs()) {
+      assetPickerPrefs.preferFavorites=prefer.checked=previous;
+      $("assetPreviewStatus").textContent="浏览器未能保存收藏优先设置。";
+    }
+  };
+  const edit=async (reset)=>{
+    const entry=catalog.get(assetSelected);
+    if (!entry) return;
+    const id=assetAnnotationId(entry);
+    const status=$("assetPreviewStatus");
+    $("assetAnnotationSave").disabled=$("assetAnnotationReset").disabled=true;
+    try {
+      const fields=reset ? null : cleanAssetAnnotation({
+        label:$("assetAnnotationLabel").value,kind:$("assetAnnotationKind").value,
+        race:$("assetAnnotationRace").value,shape:$("assetAnnotationShape").value,
+        tags:$("assetAnnotationTags").value.split(/[,，、;；]+/).filter((tag)=>tag.trim())
+      });
+      await saveAssetAnnotations([{id,fields}],"manual");
+      if ($("assetsDialog").open) renderAssets();
+      status.textContent=reset ? "已恢复原始分类。" : "已保存标注。";
+    } catch (error) { status.textContent=error.message || "无法保存标注。"; }
+    finally {
+      $("assetAnnotationSave").disabled=false;
+      $("assetAnnotationReset").disabled=!assetAnnotations.has(id);
+    }
+  };
+  $("assetClassificationForm").onsubmit=(event)=>{event.preventDefault();edit(false);};
+  $("assetAnnotationReset").onclick=()=>edit(true);
+  restoreAssetAnnotations().then(()=>{
+    if ($("assetsDialog").open) renderAssets();
+  }).catch(()=>{
+    $("assetFolderStorageStatus").textContent="浏览器未能读取本地标注。可以继续浏览，并在保存时重试。";
+  });
+}
+
+function showAssetClassification(entry) {
+  $("assetClassification").hidden=!entry;
+  if (!entry) return;
+  const id=assetAnnotationId(entry);
+  const record=assetAnnotations.get(id);
+  const saved=record?.manual || {};
+  $("assetClassificationSummary").textContent="编辑分类和标签 · "+assetClassificationLabels[
+    record?.manual ? "manual" : record?.agent ? "agent" : "original"];
+  $("assetAnnotationLabel").value=saved.label || "";
+  $("assetAnnotationKind").value=saved.kind || "";
+  $("assetAnnotationRace").value=saved.race || "";
+  $("assetAnnotationShape").value=saved.shape || "";
+  $("assetAnnotationTags").value=(saved.tags || []).join("、");
+  $("assetAnnotationReset").disabled=!record;
+}
+
+async function authorizedAssetGrants() {
+  const permissions=await Promise.all(Object.values(assetFolders).map(async (state)=>{
+    const grant=state.grant;
+    if (!grant || state.busy) return null;
+    try {
+      if (grant.handle && await grant.handle.queryPermission({mode:"read"})!=="granted") return null;
+    } catch { return null; }
+    return state.grant===grant && !state.busy ? grant : null;
+  }));
+  return new Set(permissions.filter(Boolean));
+}
+
+function collaborationAssetAccess(entry,grants) {
+  const file=assetDirectoryFile(entry);
+  const grant=assetFolderGrants.get(file);
+  if (grant && grants.has(grant) && assetFolders[grant.source].grant===grant) {
+    const source=entry.source?.file===file ? entry.source : entry.browser.thumbnail;
+    return {source,library:grant.source,grant};
+  }
+  if (!grant && (entry.source?.nativePreview || entry.source?.canvasImage)) {
+    return {source:entry.source,library:entry.source.canvasImage ? "project" : "builtIn",grant:null};
+  }
+  return null;
+}
+
+async function findCollaborationAssets(options={}) {
+  await restoreAssetAnnotations();
+  const grants=await authorizedAssetGrants();
+  const query=typeof options.query==="string" ? options.query.trim().toLowerCase().replace(/[\\/]+/g,"\\") : "";
+  const words=query.split(/\s+/).filter(Boolean);
+  const kind=options.kind==="unknown" ? "unknown" : knownAssetKind(options.kind);
+  if (options.kind && !kind) throw new Error("找不到该素材用途。也可以在 query 中搜索关键词。");
+  const preference=options.favorites || (assetPickerPrefs.preferFavorites ? "prefer" : "any");
+  if (!["any","only","prefer"].includes(preference)) throw new Error("收藏筛选无效。");
+  const favorites=new Set(assetPickerPrefs.favorites);
+  const rows=[];
+  for (const entry of catalog.values()) {
+    const access=collaborationAssetAccess(entry,grants);
+    if (!access || (options.library && options.library!==access.library) ||
+        (options.annotatable && !access.grant) || !assetAnnotationMatches(entry,options.annotation) ||
+        !assetMatches(entry,words,kind ? "kind:"+kind : "",options.race,options.shape)) continue;
+    const favorite=favorites.has(assetKey(entry.path));
+    if (preference==="only" && !favorite) continue;
+    const metadata=assetMetadata(entry);
+    rows.push({
+      id:assetAnnotationId(entry),path:entry.path,label:metadata.label || entry.name,kind:metadata.kind || "unknown",
+      kindLabel:assetKindLabels[metadata.kind] || "待核对",race:metadata.race || "unknown",shape:metadata.shape || "unknown",
+      tags:metadata.tags || [],classification:metadata.classification,favorite,library:access.library,
+      annotatable:Boolean(access.grant),thumbnailOnly:Boolean(access.source.browserThumbnail),width:metadata.width,height:metadata.height
+    });
+  }
+  rows.sort((a,b)=>{
+    const exact=(row)=>query && (assetKey(row.path)===query || pathName(row.path).toLowerCase()===query);
+    return Number(Boolean(exact(b)))-Number(Boolean(exact(a))) ||
+      (preference==="prefer" ? Number(b.favorite)-Number(a.favorite) : 0) ||
+      assetCollator.compare(a.label,b.label) || assetCollator.compare(a.path,b.path);
+  });
+  const offset=number(options.offset,0,Number.MAX_SAFE_INTEGER,0);
+  const limit=number(options.limit,1,200,40);
+  return {total:rows.length,offset,nextOffset:offset+limit<rows.length ? offset+limit : null,
+    favorites:preference,loading:[...Object.values(assetFolders)].some((state)=>state.busy),items:rows.slice(offset,offset+limit)};
+}
+
+async function annotateCollaborationAssets(request) {
+  if (agentSession.paused) throw new Error("用户已暂停 Agent。");
+  if (!Array.isArray(request?.items) || !request.items.length || request.items.length>200) {
+    throw new Error("一次提交需要 1–200 条贴图标注。");
+  }
+  const grants=await authorizedAssetGrants();
+  const available=new Map();
+  for (const entry of catalog.values()) {
+    const access=collaborationAssetAccess(entry,grants);
+    if (access?.grant) available.set(assetAnnotationId(entry),{entry,access});
+  }
+  const used=new Set();
+  const changes=request.items.map(({id,fields})=>{
+    if (used.has(id) || !available.has(id)) throw new Error("贴图标注重复，或素材目录已失去授权。请重新读取列表。");
+    used.add(id);
+    return {id,fields:cleanAssetAnnotation(fields)};
+  });
+  const result=await saveAssetAnnotations(changes,"agent",()=>{
+    if (agentSession.paused) throw new Error("用户已暂停 Agent。");
+    for (const {id} of changes) {
+      const {entry,access}=available.get(id);
+      if (catalog.get(assetKey(entry.path))!==entry || assetFolders[access.grant.source].grant!==access.grant ||
+          assetFolders[access.grant.source].busy) throw new Error("素材目录已改变。请重新读取列表。");
+    }
+  });
+  return result;
+}
+
+async function previewCollaborationAsset(id) {
+  const grants=await authorizedAssetGrants();
+  const entry=[...catalog.values()].find((item)=>assetAnnotationId(item)===id);
+  const access=entry && collaborationAssetAccess(entry,grants);
+  if (!access) throw new Error("素材未载入或已失去授权。");
+  const url=await getPreview({source:access.source});
+  const picture=new Image();
+  picture.src=url;
+  await picture.decode();
+  const size=Math.min(1,256/Math.max(picture.naturalWidth,picture.naturalHeight));
+  const canvas=el("canvas");
+  canvas.width=Math.max(1,Math.round(picture.naturalWidth*size));
+  canvas.height=Math.max(1,Math.round(picture.naturalHeight*size));
+  canvas.getContext("2d").drawImage(picture,0,0,canvas.width,canvas.height);
+  if (catalog.get(assetKey(entry.path))!==entry || collaborationAssetAccess(entry,await authorizedAssetGrants())?.source!==access.source) {
+    throw new Error("素材目录已改变。请重新读取列表。");
+  }
+  return {path:entry.path,width:picture.naturalWidth,height:picture.naturalHeight,data:canvas.toDataURL("image/png").split(",")[1]};
+}
 
 function loadAssetPickerPrefs() {
   let saved;
   try { saved = JSON.parse(localStorage.getItem(assetPickerPrefsKey) || "{}"); } catch {}
-  const keys = (value)=>Array.isArray(value) ? [...new Set(value.filter((key)=>typeof key==="string"))].slice(0,100) : [];
-  return {favorites:keys(saved?.favorites),recent:keys(saved?.recent),view:["grid","list","masonry"].includes(saved?.view)?saved.view:"grid",
+  const keys = (value,limit)=>Array.isArray(value) ? [...new Set(value.filter((key)=>typeof key==="string").map(assetKey))].filter(Boolean).slice(0,limit) : [];
+  return {favorites:keys(saved?.favorites,5000),recent:keys(saved?.recent,100),preferFavorites:saved?.preferFavorites!==false,
+    view:["grid","list","masonry"].includes(saved?.view)?saved.view:"grid",
     backdrop:["light","dark"].includes(saved?.backdrop)?saved.backdrop:"",
     pageSize:assetPageSizes.includes(String(saved?.pageSize)) ? String(saved.pageSize) : "50",
     thumbWidth:number(saved?.thumbWidth,84,220,138),
     ratio:Object.hasOwn(assetThumbRatios,saved?.ratio) ? saved.ratio : "auto"};
 }
 function saveAssetPickerPrefs() {
-  try { localStorage.setItem(assetPickerPrefsKey,JSON.stringify(assetPickerPrefs)); } catch {}
+  try { localStorage.setItem(assetPickerPrefsKey,JSON.stringify(assetPickerPrefs)); return true; }
+  catch { return false; }
 }
-function assetMetadata(entry) {
+function originalAssetMetadata(entry) {
   if (!nativeAssetFacets.size) {
     const families={dialog:["frame","对话框边框"],button:["button","按钮"],dropdown:["select","下拉框"],
       checkbox:["select","复选框"],slider:["scroll","滑条"],list:["select","列表框"],edit:["frame","编辑框"]};
@@ -12318,16 +12712,21 @@ function assetMetadata(entry) {
   const name=entry.name.toLowerCase();
   const defaults=nativeAssetFacets.get(name);
   const inferred=name.match(/(?:^|[-_])(terran|protoss|zerg)(?:[-_.]|$)/)?.[1];
-  return {...nativeAtlasIndex[name],...defaults,race:entry.browser?.race || defaults?.race || inferred ||
-    (entry.source?.nativePreview ? "neutral" : undefined),...Object.fromEntries(Object.entries(entry.browser || {}).filter(([,value])=>value))};
+  const meta={...nativeAtlasIndex[name],...defaults,...Object.fromEntries(Object.entries(entry.browser || {}).filter(([,value])=>value))};
+  const browserKind=knownAssetKind(entry.browser?.kind);
+  const browserRace=normalizeAssetRace(entry.browser?.race);
+  return {...meta,kind:browserKind && browserKind!=="other" ? browserKind : defaults?.kind || inferAssetKind(name) || browserKind,
+    race:browserRace || defaults?.race || inferred || (entry.source?.nativePreview ? "neutral" : undefined),
+    shape:normalizeAssetShape(entry.browser?.shape) || defaults?.shape};
 }
 function assetMatches(entry,words,category,race,shape) {
   const metadata=assetMetadata(entry);
   const type = /^btn[-_]/i.test(entry.name) ? "btn" : /^ui[-_]/i.test(entry.name) || entry.source?.nativePreview ? "ui" : "other";
-  if (category && (category.startsWith("kind:") ? metadata.kind!==category.slice(5) : category!==type)) return false;
-  if ((race && metadata.race!==race) || (shape && metadata.shape!==shape)) return false;
+  if (category && (category.startsWith("kind:") ? (metadata.kind || "unknown")!==category.slice(5) : category!==type)) return false;
+  if ((race && (metadata.race || "unknown")!==race) || (shape && (metadata.shape || "unknown")!==shape)) return false;
   const key=assetKey(entry.path);
-  const terms=[key,entry.tags,metadata.label,assetRaceLabels[metadata.race],assetKindLabels[metadata.kind],
+  const terms=[key,entry.tags,metadata.label,...(metadata.tags || []),metadata.kind,metadata.race,metadata.shape,
+    assetRaceLabels[metadata.race],assetKindLabels[metadata.kind],
     metadata.race==="terran" ? "人类" : metadata.race==="protoss" ? "神族" : ""].filter(Boolean).join(" ").toLowerCase();
   return words.every((word)=>terms.includes(word));
 }
@@ -12418,10 +12817,11 @@ function selectAsset(key) {
   const source=entry?.source;
   function meta(width,height) {
     $("assetPreviewMeta").textContent = entry ? [
-      assetRaceLabels[metadata.race],assetKindLabels[metadata.kind],metadata.shape,
+      assetRaceLabels[metadata.race],assetKindLabels[metadata.kind] || "用途待核对",metadata.shape==="unknown" ? "形态待核对" : metadata.shape,
       width && height ? width+" × "+height : "",
       source?.canvasImage ? "随项目保存" : source?.nativePreview ? "内置原生图集" :
-        source?.browserThumbnail ? "浏览器缩略图" : source?.file ? "本地原文件" : source ? "" : "只有资源路径"
+        source?.browserThumbnail ? "浏览器缩略图" : source?.file ? "本地原文件" : source ? "" : "只有资源路径",
+      metadata.tags?.length ? metadata.tags.join("、") : ""
     ].filter(Boolean).join(" · ") : "";
   }
   meta(metadata?.width,metadata?.height);
@@ -12447,6 +12847,7 @@ function selectAsset(key) {
   favorite.setAttribute("aria-pressed",String(saved));
   for (const id of ["assetFavorite","assetApply","assetCopyPath"]) $(id).disabled=!entry;
   $("assetDownloadDds").disabled=!entry?.source?.file || Boolean(entry.source.browserThumbnail);
+  showAssetClassification(entry);
   $("assetPreviewStatus").textContent = "";
 }
 function scheduleAssetMasonry() {
@@ -12497,7 +12898,7 @@ function makeAssetCard(entry) {
     assetPictureObserver.observe(picture);
   } else loadAssetCardPicture(picture,entry,metadata);
   const caption=el("span","asset-card-caption");
-  caption.append(el("span","asset-card-title",title));
+  caption.append(el("span","asset-card-title",(assetPickerPrefs.favorites.includes(key) ? "★ " : "")+title));
   if (title!==filename) caption.append(el("span","asset-card-detail",entry.name));
   card.append(picture,caption);
   return card;
@@ -12539,7 +12940,8 @@ function renderAssets(revealSelected = false) {
   const scope=assetScope;
   const source=scope==="project" ? [...catalog.values()].filter((entry)=>entry.source?.canvasImage) :
     scope ? assetPickerPrefs[scope].map((key)=>catalog.get(key)).filter(Boolean) : catalog.values();
-  const assets=Array.from(source).filter((entry)=>assetMatches(entry,words,category,race,shape));
+  const annotation=$("assetAnnotationFilter").value;
+  const assets=Array.from(source).filter((entry)=>assetAnnotationMatches(entry,annotation) && assetMatches(entry,words,category,race,shape));
   if (scope!=="recent") assets.sort((a,b)=>assetCollator.compare(a.name,b.name) || assetCollator.compare(a.path,b.path));
   const exact=assets.findIndex((entry)=>query && (assetKey(entry.path)===query ||
     entry.name.toLowerCase()===query || entry.name.toLowerCase().replace(/\.dds$/i,"")===query));
@@ -12564,7 +12966,8 @@ function renderAssets(revealSelected = false) {
   assetPage=Math.max(0,Math.min(assetPage,pageCount-1));
   const empty=$("assetEmpty");
   empty.hidden=assets.length>0;
-  empty.textContent=!catalog.size ? "连接图标浏览器或导入素材后搜索贴图。" : scope==="favorites" ?
+  empty.textContent=Object.values(assetFolders).some((state)=>state.busy) ? "正在读取素材目录，筛选结果会在读取完成后刷新。" :
+    !catalog.size ? "连接图标浏览器或导入素材后搜索贴图。" : scope==="favorites" ?
     "没有匹配的收藏。可清除筛选，或切回全部贴图。" : scope==="recent" ?
     "没有匹配的使用记录。可清除筛选，或切回全部贴图。" : scope==="project" ?
     "没有匹配的项目图片。拖入或粘贴到画布的图片会显示在这里。" : "没有符合条件的贴图。试试缩短关键词或清除筛选。";
@@ -12595,12 +12998,13 @@ function renderAssets(revealSelected = false) {
 function installAssetPicker() {
   const types=el("optgroup");
   types.label="细分用途";
-  for (const [kind,label] of Object.entries(assetKindLabels)) {
+  for (const [kind,label] of [...Object.entries(assetKindLabels),["unknown","用途待核对"]]) {
     const option=el("option","",label);
     option.value="kind:"+kind;
     types.append(option);
   }
   $("assetCategory").append(types);
+  installAssetClassification();
   $("assetQuery").parentNode.prepend(icon("search"));
   $("assetPageSize").value=assetPickerPrefs.pageSize;
   $("assetThumbWidth").value=String(assetPickerPrefs.thumbWidth);
@@ -12748,10 +13152,21 @@ function installAssetPicker() {
   });
   $("assetFavorite").onclick=()=>{
     if (!catalog.has(assetSelected)) return;
-    const saved=assetPickerPrefs.favorites.includes(assetSelected);
+    const previous=assetPickerPrefs.favorites;
+    const saved=previous.includes(assetSelected);
+    if (!saved && previous.length>=5000) {
+      $("assetPreviewStatus").textContent="收藏已达 5000 项，请先取消部分收藏。";
+      return;
+    }
     assetPickerPrefs.favorites=saved ? assetPickerPrefs.favorites.filter((key)=>key!==assetSelected) :
-      [assetSelected,...assetPickerPrefs.favorites].slice(0,100);
-    saveAssetPickerPrefs();
+      [assetSelected,...assetPickerPrefs.favorites];
+    if (!saveAssetPickerPrefs()) {
+      assetPickerPrefs.favorites=previous;
+      $("assetPreviewStatus").textContent="浏览器未能保存这次收藏。";
+      return;
+    }
+    const title=[...$("assetGrid").children].find((card)=>card.dataset.assetKey===assetSelected)?.querySelector(".asset-card-title");
+    if (title) title.textContent=(saved ? "" : "★ ")+title.textContent.replace(/^★ /,"");
     if (assetScope==="favorites" && saved) renderAssets();
     else selectAsset(assetSelected);
     $("assetPreviewStatus").textContent=saved ? "已取消收藏。" : "已收藏。";
@@ -17796,7 +18211,8 @@ function installAgentCollaboration() {
   };
   refreshAgentSession();
   return Object.freeze({getState:collaborationState,edit:applyCollaborationEdits,requestReview:requestCollaborationReview,
-    exportApproved:exportCollaborationReview,claimApply:claimCollaborationApplication,reportApply:finishCollaborationApplication});
+    exportApproved:exportCollaborationReview,claimApply:claimCollaborationApplication,reportApply:finishCollaborationApplication,
+    findAssets:findCollaborationAssets,previewAsset:previewCollaborationAsset,annotateAssets:annotateCollaborationAssets});
 }
 
 setupVoteButtonTextures();

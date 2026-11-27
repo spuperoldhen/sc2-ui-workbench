@@ -62,7 +62,7 @@ MAP_CONFIG = STATE / "map.txt"
 OFFLINE = b'<meta name="sc2-preview-bridge" content="offline">'
 PREVIEW_INCLUDE = 'include "Scripts/SC2WorkbenchPreview"'
 PREVIEW_CALL = "SC2WorkbenchPreview_Init();"
-VERSION = "2026-11-27.1"
+VERSION = "2026-11-27.2"
 
 
 def map_script(root):
