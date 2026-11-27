@@ -8,6 +8,7 @@ import re
 import secrets
 import shutil
 import tempfile
+import unicodedata
 import xml.etree.ElementTree as ET
 
 
@@ -399,8 +400,7 @@ def parse_existing_triggers(triggers_text: str):
             continue
         elems_by_id[eid] = el
         if etype == "Structure":
-            ident_el = el.find("Identifier")
-            ident = ident_el.text.strip() if ident_el is not None and ident_el.text else ""
+            ident = explicit_identifier(el)
             members = {}
             for m in el.findall("Variable"):
                 mid = m.attrib.get("Id")
@@ -411,15 +411,13 @@ def parse_existing_triggers(triggers_text: str):
                 structs_by_ident[ident] = (eid, el, members)
         elif etype == "Category":
             all_category_ids.append(eid)
-            ident_el = el.find("Identifier")
-            ident = ident_el.text.strip() if ident_el is not None and ident_el.text else ""
+            ident = explicit_identifier(el)
             if ident:
                 categories_by_ident[ident] = (eid, el)
 
     for eid, el in elems_by_id.items():
         if el.attrib.get("Type") == "Variable" and eid not in member_ids:
-            ident_el = el.find("Identifier")
-            ident = ident_el.text.strip() if ident_el is not None and ident_el.text else ""
+            ident = explicit_identifier(el)
             if ident:
                 top_vars_by_ident[ident] = (eid, el)
 
@@ -433,6 +431,47 @@ def parse_trigger_strings(text: str) -> dict[str, str]:
             k, v = line.split("=", 1)
             entries[k.strip()] = v
     return entries
+
+
+def global_variable_ids(root, elements):
+    pending = [root.find("Root")]
+    categories = set()
+    variables = set()
+    while pending:
+        node = pending.pop()
+        if node is None:
+            continue
+        for item in node.findall("Item"):
+            identifier = item.get("Id")
+            if item.get("Library") or identifier not in elements:
+                continue
+            if item.get("Type") == "Variable":
+                variables.add(identifier)
+            elif item.get("Type") == "Category" and identifier not in categories:
+                categories.add(identifier)
+                pending.append(elements[identifier])
+    return variables
+
+
+def automatic_identifiers(label):
+    parts = []
+    for char in unicodedata.normalize("NFC", label.strip()):
+        if re.fullmatch(r"[A-Za-z0-9_]", char):
+            parts.append(char)
+        elif char.isspace() or unicodedata.category(char)[0] in "PSZC":
+            parts.append("_")
+        else:
+            encoded = char.encode("utf-8").hex().upper()
+            parts.append(encoded[0].lower() + encoded[1:] if not "".join(parts).strip("_") else encoded)
+    stem = re.sub(r"_+", "_", "".join(parts)).strip("_")
+    compact = "".join(char for char in label.strip() if char.isalnum() or char == "_")
+    legacy = "".join(char if char.isascii() else char.encode("utf-8").hex() for char in compact)
+    return {"_" + item if item[0].isdigit() else item for item in (stem, legacy) if item}
+
+
+def explicit_identifier(element):
+    node = element.find("Identifier")
+    return (node.text or node.get("Value") or node.get("val") or "").strip() if node is not None else ""
 
 
 def read_var_shape(el: ET.Element, elems_by_id: dict[str, ET.Element]):
@@ -614,7 +653,7 @@ def plan_and_apply(args):
     spec = load_spec(args.spec, args.manifest, args.category)
     triggers_text, t_bom, t_crlf = read_text_preserve(triggers_path)
     (
-        _,
+        trigger_root,
         used_ids,
         elems_by_id,
         all_category_ids,
@@ -640,6 +679,32 @@ def plan_and_apply(args):
         dname = primary_ts_entries.get(f"Category/Name/{cid}")
         if dname:
             categories_by_display[dname] = cid
+
+    globals_in_tree = global_variable_ids(trigger_root, elems_by_id)
+    top_vars_by_ident = {}
+    explicit_variables = set()
+    for eid in globals_in_tree:
+        element = elems_by_id[eid]
+        ident = explicit_identifier(element)
+        if not ident:
+            continue
+        if ident in top_vars_by_ident:
+            raise ValueError(f"Duplicate GUI identifier gv_{ident}; verify the map variables.")
+        explicit_variables.add(eid)
+        top_vars_by_ident[ident] = (eid, element)
+    implicit_by_identifier = {}
+    for path in tstr_paths:
+        if not path.is_file():
+            continue
+        labels = {key.casefold(): value for key, value in parse_trigger_strings(read_text_preserve(path)[0]).items()}
+        for eid in globals_in_tree - explicit_variables:
+            label = labels.get(f"variable/name/{eid.casefold()}", "")
+            for alias in automatic_identifiers(label):
+                implicit_by_identifier.setdefault(alias, set()).add(eid)
+    ms_path = next((path for path in (root / "MapScript.galaxy", root / "Base.SC2Data/MapScript.galaxy")
+                    if path.is_file()), root / "MapScript.galaxy")
+    ms_text, ms_bom, ms_crlf = read_text_preserve(ms_path) if ms_path.is_file() else ("", False, False)
+    compiled_variables = set(re.findall(r"(?m)^\s*\w+(?:\s*\[[^\]\r\n]+\])*\s+(gv_\w+)\s*[;=]", ms_text))
 
     report = {
         "map": str(root),
@@ -784,8 +849,18 @@ def plan_and_apply(args):
         if tinfo["triggers"] == "struct" and not v_struct_id:
             raise ValueError(f"Global variable {ident} references unknown struct {v_struct_ident}")
 
-        if ident in top_vars_by_ident:
-            vid, vel = top_vars_by_ident[ident]
+        found = top_vars_by_ident.get(ident)
+        if not found:
+            matches = implicit_by_identifier.get(ident, set())
+            if len(matches) > 1:
+                raise ValueError(f"Ambiguous editor-generated identifier gv_{ident}; verify the GUI variable ID.")
+            if matches:
+                eid = next(iter(matches))
+                found = (eid, elems_by_id[eid])
+        if not found and f"gv_{ident}" in compiled_variables:
+            raise ValueError(f"Compiled global gv_{ident} exists, but its GUI variable could not be identified.")
+        if found:
+            vid, vel = found
             old_type, old_dims, old_struct = read_var_shape(vel, elems_by_id)
             if old_type != tinfo["triggers"]:
                 raise ValueError(f"Existing global variable {ident} has type '{old_type}', expected '{tinfo['triggers']}'")
@@ -855,11 +930,8 @@ def plan_and_apply(args):
         report["triggerStrings"].append(f"{k}={v}")
 
     # Optional MapScript.galaxy sync
-    ms_path = root / "MapScript.galaxy"
     updated_ms = None
-    ms_bom, ms_crlf = False, False
     if not args.no_map_script and ms_path.is_file():
-        ms_text, ms_bom, ms_crlf = read_text_preserve(ms_path)
         updated_ms, ms_notes = sync_map_script(ms_text, spec["structures"], spec["variables"])
         for n in ms_notes:
             if n.startswith("WARNING:"):
@@ -894,7 +966,9 @@ def plan_and_apply(args):
             atomic_write_text(tsp, "\n".join(lines) + "\n", ts_bom, ts_crlf)
 
         if updated_ms is not None and ms_path.is_file():
-            shutil.copy2(ms_path, backup_root / "MapScript.galaxy")
+            backup = backup_root / ms_path.relative_to(root)
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ms_path, backup)
             atomic_write_text(ms_path, updated_ms, ms_bom, ms_crlf)
 
     print(json.dumps(report, ensure_ascii=False, indent=2))

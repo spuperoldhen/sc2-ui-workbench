@@ -158,7 +158,7 @@ node agent.mjs review "C:\path\to\review.json"
 node agent.mjs publish "定稿ID" "C:\path\to\return.zip"
 ```
 
-- 返回 `existingIntegration`：可以继续 `claim` 和本地增量写入。
+- 返回 `existingIntegration`：`publish` 已自动领取并写入，不要再次 `claim`；失败时读取结果并在工作台重新定稿。
 - 返回 `agentIntegration`：需要读取包内的 `ui_manifest.json`、初始化和 GUI 变量说明，按实际地图接入触发器；完成后用 `report` 回报。
 - 目标必须是 `-UI-Test` 副本；不要写正式地图。
 

@@ -11,6 +11,8 @@
 
 `agent.mjs start` 会启动本地工作台助手，并用 `127.0.0.1` 协作页代替 `file://`。项目文件、标注、收藏和素材目录保存在工作台目录的 `data/` 中，普通启动器和协作页共用；更换浏览器后不需要重新授权素材目录。
 
+本版 EXE 已包含更新后的助手。从旧版升级时，请先关闭原启动器打开的所有工作台标签页，待旧助手退出，再由 Agent 使用 `agent.mjs start` 启动。多个浏览器同时编辑标注和收藏时，由更新后的 `tools/local_store.py` 在本机合并。
+
 第一次使用可以从原工作台保存项目 JSON，再让 Agent 用 `open` 打开，或在协作页导入。已有浏览器集成也可以直接打开同目录 `index.html?agentCollab=1`，通过原有浏览器控制通道调用 `window.SC2WorkbenchCollaboration`。
 
 ## 给本地 Agent
@@ -25,7 +27,7 @@
 | `node agent.mjs edit edit.json` | 验证一批改动，写入画布，形成一次可撤销操作 |
 | `node agent.mjs review review.json` | 请求用户查看定稿，返回 `review.id` |
 | `node agent.mjs publish 定稿ID 回导.zip [integration.json]` | 等待用户确认，导出回导包，按接入类型继续 |
-| `node agent.mjs claim 定稿ID 回导.zip` | 核对定稿、文件和目标路径，开始本地接入 |
+| `node agent.mjs claim 定稿ID 回导.zip` | 仅对 `agentIntegration` 核对定稿、文件和目标路径，开始本地接入；`existingIntegration` 已由 `publish` 自动处理 |
 | `node agent.mjs report 定稿ID result.json` | 把接入或编译结果显示在工作台协作栏 |
 
 如需指定浏览器，使用环境变量 `SC2_WORKBENCH_CHROME`，值为其可执行文件的完整路径。协作调试端口默认为本机 9226，可用 `SC2_WORKBENCH_PORT` 修改；工作台页面端口默认为 8765，可用 `SC2_WORKBENCH_HELPER_PORT` 修改。现有测试副本的增量回导和接入前校验需 Python 3.9 或更新版。如命令名不是 `python`，可用 `SC2_WORKBENCH_PYTHON` 指定。
@@ -85,7 +87,9 @@
 
 首次接入、需要新建 GUI 变量、动作或事件变更时，结果为 `agentIntegration`。本地 Agent 可以通过以下任一方式接续：
 
-- **使用本地 Agent 的地图编辑能力。** `publish` 返回后先运行 `claim`。读取包内 `ui_manifest.json`、初始化动作、全局变量和触发器交接。根据现有地图结构接入，复用同名兼容变量和实际初始化位置，处理素材登记，打开编辑器编译地图副本，再用 `report` 返回结果。结果 JSON 包含 `ok` 布尔值和 `message` 文本。
+如果定稿包的 `files` 已列出 `triggerData`，随包的 `stage.py` 会核对原文件哈希，把生成的 `Triggers` 和译文写到已确认的地图副本，并保留备份。接着连接初始化动作并编译地图。包内包含数组初始值时，在创建界面前执行对应的初始化动作。
+
+- **使用本地 Agent 的地图编辑能力。** 仅当 `publish` 返回 `agentIntegration`（且没有传入适配器）时，运行 `claim`；`existingIntegration` 已由 `publish` 自动领取并写入，不要再执行 `claim`。读取包内 `ui_manifest.json`、初始化动作、全局变量和触发器交接。根据现有地图结构接入，复用同名兼容变量和实际初始化位置，处理素材登记，打开编辑器编译地图副本，再用 `report` 返回结果。结果 JSON 包含 `ok` 布尔值和 `message` 文本。
 - **挂接已经可运行的地图接入命令。** 给 `publish` 传入本地 `integration.json`。它包含 `command` 可执行文件路径和 `args` 字符串数组。工具核对定稿、目标及文件哈希后调用该命令，在原有参数后追加回导 ZIP 路径和目标地图路径。接入命令成功退出后，其输出会显示在协作栏。此包提供上面提到的增量写入工具和接入入口。首次接入所用的本地地图编辑及编译命令由实际地图工程提供。
 
 例如，如果本地已有处理该地图的脚本，可以把 `command` 设置为 `python`，把脚本的绝对路径作为 `args` 第一项。脚本读取追加的两个参数，按地图实际触发器结构接入和编译。选择已有脚本时，先确认它能接收这两个参数。

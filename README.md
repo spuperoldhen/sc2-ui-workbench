@@ -1,5 +1,9 @@
 # SC2 UI 工作台
 
+## v1.4.1 · 变量回导修复
+
+修复定稿回导在变量改动时误报完成的问题：变量新增、改名和数组初始值会进入回导包；自动命名的 GUI 变量按本地化名称复用；`originalName` 改名和 Agent 打开项目的忙碌检查也已补齐。审阅补丁另修复了触发器文件部署、同显示名变量误认和多浏览器标注覆盖。本版 EXE 已用更新后的助手重建；从旧版升级时先关闭旧工作台标签页，再由 Agent 用 `agent.mjs start` 启动。详见 [RELEASE_NOTES.md](RELEASE_NOTES.md)。
+
 ## v1.4.0 · 工作台本地数据目录
 
 项目、贴图标注、收藏、项目收藏标记和素材目录授权改为保存在工作台目录的 `data/` 中，不再依赖某一个浏览器配置。普通启动器、Agent 协作页和更换后的其他浏览器都读取同一份数据。
@@ -83,10 +87,10 @@
 
 ### 本地 Agent 协作
 
-1. 在解压目录打开 PowerShell，运行 `node .\agent.mjs start`。需要 Node.js 22 或更新版本，并安装 Edge 或 Chrome；命令会打开自己的协作浏览器配置。
-2. 在协作标签页打开项目 JSON 或导入组件地图，点击「恢复 Agent」。把解压目录交给本地 Agent，让它按 [Agent协作说明.md](Agent协作说明.md) 的 `get` / `edit` / `review` 流程操作。
+1. 把解压目录交给本地 Agent，在对话里说「打开工作台协作」。Agent 会在本机运行 `node agent.mjs start` 并打开自己的协作浏览器配置；你不需要打开 PowerShell。需要 Node.js 22 或更新版本，并安装 Edge 或 Chrome。
+2. 在协作标签页打开项目 JSON 或导入组件地图，点击「恢复 Agent」。Agent 按 [Agent协作说明.md](Agent协作说明.md) 的 `get` / `edit` / `review` 流程操作。
 3. 你可以在同一画布拖动、改属性或撤销；选中控件后「指出问题」会给 Agent 留言。Agent 提交定稿后，核对目标路径并「确认定稿并交给 Agent 回导」。
-4. `publish` 会生成增量回导 ZIP；`claim` / `apply_ui_revision.py` 只对 `-UI-Test` 副本写入，写入前核对目标、脚本和文件哈希，失败回滚并保留备份。需要新建触发器或变量时，结果交给本地 Agent 的 `agentIntegration` 接入。
+4. `publish` 会生成增量回导 ZIP；`publish` 对 `existingIntegration` 已自动领取并写入；`claim` 只用于 `agentIntegration` 或手动接续。`apply_ui_revision.py` 只对 `-UI-Test` 副本写入，写入前核对目标、脚本和文件哈希，失败回滚并保留备份。需要新建触发器或变量时，结果交给本地 Agent 的 `agentIntegration` 接入。
 
 ### 素材和写入状态
 
