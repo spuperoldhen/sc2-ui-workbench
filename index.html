@@ -835,6 +835,16 @@ td code{overflow-wrap:anywhere;color:#dec8ff}
 .top-right button{min-height:28px;font-size:12px}
 .top #openTutorial{background:var(--guide-fill);border-color:var(--guide-edge);color:var(--guide-ink);min-height:32px;gap:6px;font-size:12px;font-weight:720}
 .top #openTutorial:hover:not(:disabled){border-color:var(--guide-ink)}
+.top #openAgentHelp{background:var(--tint);border-color:var(--edge);color:var(--ink);min-height:32px;gap:6px;font-size:12px;font-weight:720}
+.top #openAgentHelp:hover:not(:disabled){border-color:var(--accent)}
+#agentHelpDialog{width:min(620px,calc(100% - 28px))}
+#agentHelpDialog[open]{display:flex;flex-direction:column;height:620px;max-height:calc(100% - 35px)}
+#agentHelpDialog .modal-head,#agentHelpDialog .export-actions{flex:none}
+#agentHelpDialog .agent-help-body{min-height:0;overflow:auto}
+.agent-help-body{display:grid;gap:10px}
+.agent-help-prompt{margin:0;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--field);color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 var(--mono)}
+.agent-help-body .guide-steps{margin:2px 0 0}
+.agent-help-body .hint-row{margin:0}
 #openCommands kbd{margin-left:1px}
 main{max-width:none;padding:10px clamp(10px,1.6vw,25px) 9px}
 .heading{margin-bottom:9px;align-items:center;gap:clamp(12px,1.8vw,26px)}
@@ -1062,6 +1072,7 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
   <div class="top-identity">
     <div class="brand"><span id="brandIcon" class="brand-icon"></span> 对话框工作台 <small>SC2 UI EDITOR</small></div>
     <button id="openTutorial" type="button" aria-haspopup="dialog">使用教程</button>
+    <button id="openAgentHelp" type="button" aria-haspopup="dialog" title="让本地 Agent 帮你操作工作台">Agent 协作</button>
   </div>
   <div class="top-right"><span class="save" id="saveStatus"><i></i>本地草稿</span>
     <button type="button" id="openCommands" class="quiet" aria-haspopup="dialog">命令 <kbd id="commandKey">Ctrl K</kbd></button>
@@ -1094,6 +1105,21 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
         <button id="agentReviewConfirm" type="button" class="primary">确认定稿并交给 Agent 回导</button>
       </div>
     </div>
+  </dialog>
+  <dialog id="agentHelpDialog" aria-labelledby="agentHelpTitle">
+    <header class="modal-head"><div><h2 id="agentHelpTitle">让本地 Agent 帮你做界面</h2><p>不用打开终端，也不用手写命令。</p></div><button type="button" class="icon-btn quiet" data-close aria-label="关闭"></button></header>
+    <div class="modal-body agent-help-body">
+      <p>把工作台所在的整个文件夹交给你的 AI Agent，对它说：</p>
+      <pre id="agentPromptText" class="agent-help-prompt">请帮我使用 SC2 UI 工作台协作。</pre>
+      <div class="cluster"><button id="copyAgentPrompt" type="button" class="primary">复制给 Agent 的话</button><span id="agentCopyStatus" class="hint" role="status"></span></div>
+      <ol class="guide-steps">
+        <li>Agent 会在本机启动协作页；不需要你打开 PowerShell。</li>
+        <li>首次由你在浏览器里选择项目、地图或素材目录。</li>
+        <li>Agent 改完后，你核对定稿并点一次确认。</li>
+      </ol>
+      <p class="hint-row">需要 Node.js 22 或更新版本，以及 Edge 或 Chrome。Agent 应读取工作台里的 <code>skills/sc2-workbench-collab/SKILL.md</code>。</p>
+    </div>
+    <footer class="export-actions"><button id="agentHelpLater" type="button" class="quiet">稍后</button><button id="agentHelpTutorial" type="button">查看图文说明</button></footer>
   </dialog>
   <div class="heading">
     <h1>UI 布局编辑器</h1>
@@ -1398,6 +1424,7 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
     <nav class="tutorial-nav" aria-label="教程目录">
       <p class="tutorial-nav-label">工作台</p>
       <button type="button" data-tutorial-step="projects" aria-controls="tutorialProjects" aria-current="step">项目与模板</button>
+      <button type="button" data-tutorial-step="agent" aria-controls="tutorialAgent">本地 Agent 协作</button>
       <button type="button" data-tutorial-step="appearance" aria-controls="tutorialAppearance">表达式与格式刷</button>
       <button type="button" data-tutorial-step="preview" aria-controls="tutorialLivePreview">实机预览</button>
       <p class="tutorial-nav-label">接入银河编辑器</p>
@@ -1419,6 +1446,19 @@ body.canvas-focus .canvas-column{grid-column:1;grid-row:1}
           <li><strong>查找全局变量。</strong>在左侧切换「全局变量」，按本地化名称或脚本标识符搜索，展开结构体查看成员。点击引用跳转到对应对话框或控件；编辑名称、标识符、结构体成员、数组及初始值，保存后工作台引用会同步更新。「导出检查」会核对已知声明的类型和索引范围。旧项目可点「读取地图变量」选择原地图文件夹补齐名称，原布局保留。确认变量后，用「项目 → 回导地图」生成带真实 GUI 变量的地图副本。</li>
           <li><strong>更新地图素材。</strong>从回导窗口点「重新连接地图文件夹」，可重新读取文本和贴图。要导入另一张地图，用「项目 → 导入 SC2Components」打开独立项目。</li>
         </ul>
+      </section>
+
+      <section id="tutorialAgent" class="tutorial-step" data-tutorial-page hidden>
+        <h3 tabindex="-1">让本地 Agent 帮你操作</h3>
+        <p>不需要打开 PowerShell，也不需要记住命令。把工作台所在的整个文件夹交给你的 AI Agent，在对话里说「打开工作台协作」或直接描述要改的界面即可。Agent 会在本机启动协作页。</p>
+        <ol>
+          <li>Agent 启动协作页后，你只需在浏览器里选择一次项目、回导地图或素材目录。</li>
+          <li>Agent 在共享画布上修改控件；你可以暂停它、自己拖动，或点「指出问题」留言。</li>
+          <li>Agent 提交定稿后，你核对目标和摘要，点「确认定稿并交给 Agent 回导」。</li>
+        </ol>
+        <pre id="tutorialAgentPrompt" class="agent-help-prompt">请帮我使用 SC2 UI 工作台协作。</pre>
+        <div class="cluster"><button id="tutorialAgentCopy" type="button" class="primary">复制给 Agent 的话</button><span id="tutorialAgentCopyStatus" class="hint" role="status"></span></div>
+        <p class="hint-row">需要 Node.js 22 或更新版本，以及 Edge 或 Chrome。Agent 应读取工作台里的 <code>skills/sc2-workbench-collab/SKILL.md</code>。原有 EXE 只负责普通工作台；协作模式通过 Agent 启动的本地助手运行。</p>
       </section>
 
       <section id="tutorialAppearance" class="tutorial-step" data-tutorial-page hidden>
@@ -2270,7 +2310,7 @@ const styleExamples = {
   "":"映射到游戏默认样式", ModCenterSize16:"战役样式示例 · 居中 16"
 };
 const STORE_KEY = "sc2-dialog-workbench-v1";
-const workbenchVersion = "1.4.2";
+const workbenchVersion = "1.4.3";
 let agentSession;
 const localStoreToken = document.querySelector('meta[name="sc2-preview-bridge"]')?.content || "";
 const localStore = {available:false, data:null, error:"", promise:null};
@@ -2325,6 +2365,7 @@ function applyLocalProjectFlags(flags) {
 const autoSelectDialogsKey = STORE_KEY+"-auto-select-dialogs";
 const tourKey = STORE_KEY+"-quick-start";
 const tourSteps = [
+  ["#openAgentHelp","让本地 Agent 帮你做","不想手动摆控件？把工作台文件夹交给 AI Agent，说一句「打开工作台协作」。它会启动协作页，你只需选目录和确认定稿。"],
   ["#openTemplates","从布局模板开始","先选投票、英雄选择或观战面板，也可以直接使用空白对话框。"],
   [".side.left","添加控件与管理图层","在左侧添加图片、按钮或文字。切换「全局变量」可按本地化名称搜索、定位绑定控件及编辑变量；图层列表用于选中、锁定和排序。"],
   ["#toggleComposite","选择单页或合成画布","默认关闭，只显示当前对话框。开启后同时显示全部对话框；实机预览的导出范围也遵循该开关。"],
@@ -2383,6 +2424,8 @@ function installTour() {
   window.addEventListener("resize",placeTour);
   window.addEventListener("scroll",placeTour,{passive:true,capture:true});
   try {
+    const mode=new URLSearchParams(location.search);
+    if (mode.get("agentCollab")==="1" || mode.get("localAgent")==="1") return;
     if (!localStorage.getItem(tourKey) && !localStorage.getItem(STORE_KEY)) showTourStep(0);
   } catch {}
 }
@@ -16993,6 +17036,59 @@ function installGalaxyImport() {
   };
 }
 
+async function agentCollaborationPrompt() {
+  let root="";
+  try {
+    if (await initLocalStore()) {
+      const dataRoot=String(localStore.data?.dataRoot || "").replace(/[\\/]+$/,"");
+      root=dataRoot.replace(/[\\/]data$/i,"") || dataRoot;
+    }
+  } catch {}
+  return [
+    "请帮我使用 SC2 UI 工作台协作。",
+    root ? "工作台目录："+root : "工作台目录：当前工作台所在的文件夹（请先确认路径）。",
+    "请读取该目录里的 skills/sc2-workbench-collab/SKILL.md，并使用 agent.mjs 启动协作页；如果已有协作页，请复用，不要重复启动。",
+    "不要让我打开 PowerShell。需要选择项目、回导地图或素材目录时，在浏览器里提示我；编辑完成后把定稿交给我确认。"
+  ].join("\n");
+}
+
+async function copyAgentCollaborationPrompt(status, dialog) {
+  const text=await agentCollaborationPrompt();
+  if (status) status.textContent="正在复制…";
+  const copied=await copyCode(text,null,dialog);
+  if (status) status.textContent=copied ? "已复制，把它发给你的 Agent 即可。" : "无法自动复制，请手动选择上面的文字。";
+  return copied;
+}
+
+function installAgentHelp() {
+  const dialog=$("agentHelpDialog");
+  const introKey=STORE_KEY+"-agent-intro";
+  const markSeen=()=>{ try { localStorage.setItem(introKey,"seen"); } catch {} };
+  const open=async()=>{
+    $("agentCopyStatus").textContent="";
+    $("agentPromptText").textContent=await agentCollaborationPrompt();
+    if (!dialog.open) dialog.showModal();
+    $("copyAgentPrompt").focus({preventScroll:true});
+  };
+  $("openAgentHelp").onclick=open;
+  $("agentHelpLater").onclick=()=>{ markSeen(); dialog.close(); };
+  $("agentHelpTutorial").onclick=()=>{ markSeen(); dialog.close(); $("openTutorial").click(); };
+  $("copyAgentPrompt").onclick=()=>copyAgentCollaborationPrompt($("agentCopyStatus"),dialog);
+  dialog.addEventListener("close",markSeen);
+  const mode=new URLSearchParams(location.search);
+  if (mode.get("agentCollab")==="1" || mode.get("localAgent")==="1") {
+    $("openAgentHelp").hidden=true;
+    $("openTour").hidden=true;
+    return;
+  }
+  setTimeout(()=>{
+    if (dialog.open || !$("tourCard").hidden || document.querySelector("dialog[open]")) return;
+    let seen=false;
+    try { seen=Boolean(localStorage.getItem(introKey)); } catch {}
+    if (!seen) open();
+  },1200);
+}
+
 function installTutorial() {
   const dialog = $("tutorialDialog");
   const exportDialog = $("exportDialog");
@@ -17037,6 +17133,7 @@ function installTutorial() {
 
   $("openTutorial").onclick = () => openTutorial();
   $("openTutorialFromExport").onclick = () => openTutorial(true);
+  $("tutorialAgentCopy").onclick = () => copyAgentCollaborationPrompt($("tutorialAgentCopyStatus"),dialog);
   steps.forEach((step,i) => { step.onclick = () => showStep(i); });
   $("tutorialPrev").onclick = () => { if (index > 0) showStep(index-1); };
   $("tutorialNext").onclick = () => {
@@ -19068,6 +19165,7 @@ setupNativeAtlasTextures();
 installLivePreview();
 render();
 installTour();
+installAgentHelp();
 new ResizeObserver(setSurfaceSize).observe($("viewport"));
 if (new URLSearchParams(location.search).get("localAgent")==="1") {
   window.SC2WorkbenchAutomation=Object.freeze({

@@ -2,7 +2,7 @@
 
 ## 和 Agent 一起编辑
 
-用户不需要打开 PowerShell。把解压目录交给本地 Agent，在对话里说「打开工作台协作」或直接描述要改的布局即可。Agent 会在本机运行命令、打开协作页并读取项目。Agent 应优先读取 `skills/sc2-workbench-collab/SKILL.md` 的工作流。
+用户不需要打开 PowerShell。把解压目录交给本地 Agent，在对话里说「打开工作台协作」或直接描述要改的布局即可。Agent 会在本机运行命令、打开协作页并读取项目。Agent 应优先读取 `skills/sc2-workbench-collab/SKILL.md` 的工作流。普通工作台顶部的「Agent 协作」按钮和首次启动引导也提供同一段可直接复制给 Agent 的话；首次打开 EXE 时会自动弹出。
 
 1. Agent 启动协作页并打开项目。使用 Node.js 22 或更新版，并安装 Edge 或 Chrome。协作页是一张可见的标签页。
 2. 打开或切换项目后，点击「恢复 Agent」（如果显示「暂停 Agent」说明已经启用）。用户只需要在浏览器里完成项目/地图目录选择和最终定稿确认。
